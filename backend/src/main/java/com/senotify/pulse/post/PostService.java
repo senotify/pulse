@@ -25,19 +25,29 @@ public class PostService {
     private final UserRepository users;
     private final SocialRepository graph;
     private final OutboxWriter outbox;
+    private final MediaRepository media;
 
-    PostService(PostRepository posts, UserRepository users, SocialRepository graph, OutboxWriter outbox) {
+    PostService(PostRepository posts, UserRepository users, SocialRepository graph, OutboxWriter outbox,
+                MediaRepository media) {
         this.posts = posts;
         this.users = users;
         this.graph = graph;
         this.outbox = outbox;
+        this.media = media;
     }
 
+    static final int MAX_MEDIA = 4;
+
+    /** Text is optional when photos are attached, as on X. Media ids must be the viewer's own unposted uploads. */
     @Transactional
-    PostView create(long viewer, String content, Long replyToId) {
-        String text = content.strip();
-        if (text.isEmpty()) {
+    PostView create(long viewer, String content, Long replyToId, List<Long> mediaIds) {
+        String text = content == null ? "" : content.strip();
+        List<Long> attachments = mediaIds == null ? List.of() : mediaIds.stream().distinct().toList();
+        if (text.isEmpty() && attachments.isEmpty()) {
             throw ApiException.badRequest("Post cannot be blank");
+        }
+        if (attachments.size() > MAX_MEDIA) {
+            throw ApiException.badRequest("A post can have at most " + MAX_MEDIA + " photos");
         }
         Long parentId = null;
         if (replyToId != null) {
@@ -46,6 +56,10 @@ public class PostService {
             parentId = parent.id();
         }
         long id = posts.insert(viewer, text, parentId, null);
+        if (media.claim(viewer, id, attachments) != attachments.size()) {
+            // Rolls back the whole post: someone else's upload, an already used one, or an expired one.
+            throw ApiException.badRequest("Some photos are no longer available; upload them again");
+        }
         if (parentId != null) {
             posts.adjust(parentId, Counter.REPLIES, 1);
         }
@@ -129,9 +143,9 @@ public class PostService {
     }
 
     @Transactional(readOnly = true)
-    CursorPage<PostView> byAuthor(String username, long viewer, PageParams page) {
+    CursorPage<PostView> byAuthor(String username, long viewer, PostRepository.AuthorFilter filter, PageParams page) {
         long author = users.findIdByUsername(username).orElseThrow(() -> ApiException.notFound("User not found"));
-        List<PostRow> rows = posts.byAuthor(author, viewer, page.cursor(), page.fetchSize());
+        List<PostRow> rows = posts.byAuthor(author, viewer, filter, page.cursor(), page.fetchSize());
         return page(rows, viewer, page);
     }
 
@@ -173,11 +187,22 @@ public class PostService {
     /** Attaches originals to reposts; drops reposts whose original the viewer may not see. */
     private List<PostView> hydrate(List<PostRow> rows, long viewer) {
         List<Long> originalIds = rows.stream().map(PostRow::repostOfId).filter(Objects::nonNull).distinct().toList();
-        Map<Long, PostView> originals = posts.findRows(originalIds, viewer).stream()
-                .collect(Collectors.toMap(PostRow::id, row -> row.toView(null)));
+        List<PostRow> originalRows = posts.findRows(originalIds, viewer);
+
+        // One query for the photos of every post on the page, originals included.
+        List<Long> allIds = new java.util.ArrayList<>(rows.stream().map(PostRow::id).toList());
+        originalRows.forEach(row -> allIds.add(row.id()));
+        Map<Long, List<MediaView>> photos = media.forPosts(allIds);
+
+        Map<Long, PostView> originals = originalRows.stream()
+                .collect(Collectors.toMap(PostRow::id,
+                        row -> row.toView(null).withMedia(photos.getOrDefault(row.id(), List.of()), null)));
         return rows.stream()
                 .filter(row -> row.repostOfId() == null || originals.containsKey(row.repostOfId()))
-                .map(row -> row.toView(row.repostOfId() == null ? null : originals.get(row.repostOfId())))
+                .map(row -> {
+                    PostView original = row.repostOfId() == null ? null : originals.get(row.repostOfId());
+                    return row.toView(original).withMedia(photos.getOrDefault(row.id(), List.of()), original);
+                })
                 .toList();
     }
 

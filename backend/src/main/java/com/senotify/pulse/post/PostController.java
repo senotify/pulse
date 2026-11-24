@@ -4,8 +4,8 @@ import com.senotify.pulse.common.CursorPage;
 import com.senotify.pulse.common.PageParams;
 import com.senotify.pulse.common.Viewer;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -24,7 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 class PostController {
 
-    record CreatePostRequest(@NotBlank @Size(max = 280) String content, Long replyToId) {
+    /** {@code content} may be empty when {@code mediaIds} (from POST /api/media) are given. */
+    record CreatePostRequest(@Size(max = 280) String content, Long replyToId, @Size(max = 4) List<Long> mediaIds) {
     }
 
     private final PostService posts;
@@ -36,7 +37,7 @@ class PostController {
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
     PostView create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreatePostRequest request) {
-        return posts.create(Viewer.id(jwt), request.content(), request.replyToId());
+        return posts.create(Viewer.id(jwt), request.content(), request.replyToId(), request.mediaIds());
     }
 
     @GetMapping("/posts/{id}")
@@ -82,10 +83,18 @@ class PostController {
         return posts.unrepost(Viewer.id(jwt), id);
     }
 
+    /** Profile tabs: {@code filter=posts} (default, no replies), {@code replies} (everything) or {@code media}. */
     @GetMapping("/users/{username}/posts")
     CursorPage<PostView> byAuthor(@PathVariable String username, @AuthenticationPrincipal Jwt jwt,
+                                  @RequestParam(defaultValue = "posts") String filter,
                                   @RequestParam(required = false) String cursor,
                                   @RequestParam(required = false) Integer limit) {
-        return posts.byAuthor(username, Viewer.idOrAnonymous(jwt), PageParams.of(cursor, limit));
+        PostRepository.AuthorFilter tab;
+        try {
+            tab = PostRepository.AuthorFilter.valueOf(filter.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw com.senotify.pulse.common.ApiException.badRequest("filter must be posts, replies or media");
+        }
+        return posts.byAuthor(username, Viewer.idOrAnonymous(jwt), tab, PageParams.of(cursor, limit));
     }
 }

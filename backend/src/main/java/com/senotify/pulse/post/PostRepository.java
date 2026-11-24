@@ -29,7 +29,7 @@ public class PostRepository {
                     ? null
                     : new UserSummary(replyToUserId, replyToUsername, replyToDisplayName, replyToAvatarKey);
             return new PostView(id, new UserSummary(authorId, username, displayName, avatarKey), content, replyToId, replyTo,
-                    original, likeCount, replyCount, repostCount, likedByMe, repostedByMe, createdAt);
+                    List.of(), original, likeCount, replyCount, repostCount, likedByMe, repostedByMe, createdAt);
         }
     }
 
@@ -138,10 +138,28 @@ public class PostRepository {
                 .list();
     }
 
-    /** An author's posts and reposts, newest first. */
-    List<PostRow> byAuthor(long authorId, long viewer, Long cursor, int fetchSize) {
+    /** Which of an author's posts a profile tab shows. */
+    enum AuthorFilter {
+        /** Original posts and reposts, no replies. */
+        POSTS("AND p.reply_to_id IS NULL"),
+        /** Everything the author wrote or reposted. */
+        REPLIES(""),
+        /** The author's own posts and replies that carry photos. */
+        MEDIA("AND p.repost_of_id IS NULL AND EXISTS (SELECT 1 FROM media m WHERE m.post_id = p.id)");
+
+        final String sql;
+
+        AuthorFilter(String sql) {
+            this.sql = sql;
+        }
+    }
+
+    /** An author's posts, newest first, narrowed by profile tab. */
+    List<PostRow> byAuthor(long authorId, long viewer, AuthorFilter filter, Long cursor, int fetchSize) {
         return jdbc.sql(SELECT_VIEW + """
                   AND p.author_id = :author AND (:cursor IS NULL OR p.id < :cursor)
+                """ + filter.sql + """
+
                 ORDER BY p.id DESC
                 LIMIT :limit
                 """)
