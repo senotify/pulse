@@ -1,0 +1,128 @@
+name: Deploy
+
+# Push to master: test, build both images on GitHub's runners, push them to GHCR, then pull and
+# restart on the VPS. Roll back by running this workflow manually with an earlier commit SHA:
+# an explicit tag skips tests and builds and redeploys that existing image.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (a commit SHA, or 'latest'). Use this to roll back."
+        required: false
+        default: latest
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  pick:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+      rollback: ${{ steps.pick.outputs.rollback }}
+    steps:
+      - id: pick
+        run: |
+          input="${{ github.event.inputs.tag }}"
+          if [ -n "$input" ] && [ "$input" != "latest" ]; then
+            echo "tag=$input" >> "$GITHUB_OUTPUT"; echo "rollback=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"; echo "rollback=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    needs: pick
+    if: needs.pick.outputs.rollback == 'false'
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: [pick, test]
+    if: needs.pick.outputs.rollback == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: api
+            context: backend
+          - name: web
+            context: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ghcr.io/senotify/pulse-${{ matrix.name }}:${{ github.sha }}
+            ghcr.io/senotify/pulse-${{ matrix.name }}:latest
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.context }}
+
+  deploy:
+    needs: [pick, build]
+    # Runs after a successful build, or directly for a rollback (build is skipped then).
+    if: always() && (needs.build.result == 'success' || needs.pick.outputs.rollback == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+          TAG: ${{ needs.pick.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Ship the compose file only. .env (database password, JWT secret) lives solely on the
+          # server and is never written from CI.
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes "$USER@$HOST" 'mkdir -p "$HOME/pulse"'
+          scp -i ~/.ssh/deploy -o IdentitiesOnly=yes \
+            deploy/docker-compose.prod.yml "$USER@$HOST:/home/$USER/pulse/docker-compose.prod.yml"
+
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes "$USER@$HOST" \
+            TAG="$TAG" TOKEN="$TOKEN" ACTOR="$ACTOR" 'bash -euo pipefail -s' <<'REMOTE'
+          echo "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          cd "$HOME/pulse"
+          test -f .env || { echo ".env missing on server, refusing to deploy"; exit 1; }
+          export TAG
+          docker compose -f docker-compose.prod.yml pull api web
+          docker compose -f docker-compose.prod.yml up -d
+          docker image prune -f >/dev/null 2>&1 || true
+          echo "deployed pulse at $TAG"
+          REMOTE
+
+      - name: Verify the site and API answer
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            web=$(curl -sS -m 20 --resolve "pulse.senotify.com:443:${{ secrets.VPS_HOST }}" \
+                    -o /dev/null -w '%{http_code}' https://pulse.senotify.com/ || echo 000)
+            api=$(curl -sS -m 20 --resolve "pulse.senotify.com:443:${{ secrets.VPS_HOST }}" \
+                    -o /dev/null -w '%{http_code}' https://pulse.senotify.com/api/discover/trends || echo 000)
+            echo "attempt $i: web=$web api=$api"
+            if [ "$web" = "200" ] && [ "$api" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "Pulse did not come up"; exit 1
