@@ -105,24 +105,41 @@ pulse/
 | 2 | Identity, social graph, posts, outbox, Flyway schema | **Done**: tests pass on H2, smoke-tested on PostgreSQL 17 |
 | 3 | Timeline module: following feed with Redis fan-out | **Done**: smoke-tested with real Redis (including a Redis outage) |
 | 4 | Recommendation pipeline: For You feed, interaction log | **Done**: 29 tests pass in total, smoke-tested on PostgreSQL + Redis |
-| 5 | React frontend | Next |
-| 6 | Production Compose, CI workflow, Caddy route | Planned |
+| 5 | React frontend | **Done**: typechecks, builds, served by nginx in compose |
+| 6 | Production Compose, CI workflow, Caddy route | Next |
 
 ## Running locally
 
-Prerequisites: Docker with Compose v2 (Node.js 22+ for the frontend, later).
+Prerequisites: Docker with Compose v2. Node.js 22+ is only needed for frontend development and the seed script.
 
 ```bash
-# Tests (H2 in PostgreSQL mode), no local JDK required
+# Everything: PostgreSQL, Redis, API, and the web app on http://localhost:3000
+docker compose --profile api up --build
+# 8080 busy? PULSE_API_PORT=8081 docker compose --profile api up --build
+
+# Fill it with fictional demo users and posts (password for all: password123)
+node scripts/seed.mjs
+
+# Backend tests (H2 in PostgreSQL mode), no local JDK required
 docker run --rm -v "$PWD/backend":/src -v pulse-gradle-cache:/home/gradle/.gradle \
   -w /src gradle:8.14-jdk21 gradle test --no-daemon
 
-# PostgreSQL + Redis + API on http://localhost:8080 (Swagger UI at /swagger-ui.html)
-docker compose --profile api up --build
-# 8080 busy? PULSE_API_PORT=8081 docker compose --profile api up --build
+# Frontend: dev server with hot reload, proxying /api to the API
+cd frontend && npm install && PULSE_API_TARGET=http://localhost:8081 npm run dev
+npm run typecheck && npm test
 ```
 
 With a local JDK 21, `cd backend && ./gradlew test` and `./gradlew bootRun` work too.
+
+## Web app (step 5)
+
+Vite + React 18 + TypeScript, with TanStack Query for server state and React Router. There's no UI framework: one stylesheet of design tokens with light and dark themes, and inline SVG icons. The gzipped bundle is 74 KB.
+
+- **Home**: a composer, then **For you** and **Following** tabs with infinite scroll. For You shows each post's reason ("Liked or reposted by @raka"). The **Ranking signals** toggle reveals the seven features and the score behind every recommendation.
+- **Profiles**: counts, a "follows you" badge, follow, mute, block (two-step confirm), editing your own name and bio, and tabs for posts, followers and following.
+- **Threads**: a post with its replies and a reply composer.
+- **Feedback loop**: a post counts as an impression after 600 ms with at least half of it visible. Impressions and clicks are batched to `/api/interactions` with the feed surface, slot position and `modelVersion`, and flushed when the tab is hidden. These events drive the already-seen filter and click affinity in For You.
+- **Production**: a multi-stage image builds the SPA and serves it from nginx. nginx also proxies `/api` to the API container, so the browser only ever talks to one origin.
 
 Configuration (environment variables): `PULSE_DB_URL`, `PULSE_DB_USER`, `PULSE_DB_PASSWORD`, `PULSE_REDIS_HOST`, `PULSE_REDIS_PORT`, `PULSE_JWT_SECRET` (at least 32 bytes; always set it outside development), `PULSE_JWT_TTL` (ISO-8601 duration, default `PT24H`). Timeline tuning lives under `pulse.timeline` in `application.yml`.
 
