@@ -1,4 +1,4 @@
-package com.senotify.pulse.common;
+package com.senotify.pulse.common.outbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

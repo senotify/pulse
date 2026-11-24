@@ -2,7 +2,7 @@ package com.senotify.pulse.post;
 
 import com.senotify.pulse.common.ApiException;
 import com.senotify.pulse.common.CursorPage;
-import com.senotify.pulse.common.OutboxWriter;
+import com.senotify.pulse.common.outbox.OutboxWriter;
 import com.senotify.pulse.common.PageParams;
 import com.senotify.pulse.identity.UserRepository;
 import com.senotify.pulse.post.PostRepository.Counter;

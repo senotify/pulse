@@ -1,7 +1,7 @@
 package com.senotify.pulse.identity;
 
 import com.senotify.pulse.common.ApiException;
-import com.senotify.pulse.common.OutboxWriter;
+import com.senotify.pulse.common.outbox.OutboxWriter;
 import com.senotify.pulse.identity.IdentityDtos.AuthResponse;
 import com.senotify.pulse.identity.IdentityDtos.LoginRequest;
 import com.senotify.pulse.identity.IdentityDtos.Me;
