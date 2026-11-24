@@ -50,6 +50,11 @@ class PostController {
         posts.delete(Viewer.id(jwt), id);
     }
 
+    @GetMapping("/posts/{id}/ancestors")
+    java.util.List<PostView> ancestors(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        return posts.ancestors(id, Viewer.idOrAnonymous(jwt));
+    }
+
     @GetMapping("/posts/{id}/replies")
     CursorPage<PostView> replies(@PathVariable long id, @AuthenticationPrincipal Jwt jwt,
                                  @RequestParam(required = false) String cursor,

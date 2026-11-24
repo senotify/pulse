@@ -143,6 +143,18 @@ public class PostService {
     }
 
     /**
+     * The conversation above a reply, root first. Posts the viewer may not see are skipped, so the
+     * chain can have gaps, like any thread with deleted or blocked participants.
+     */
+    @Transactional(readOnly = true)
+    List<PostView> ancestors(long postId, long viewer) {
+        get(postId, viewer); // 404s for missing or hidden posts
+        return render(posts.ancestorIds(postId, MAX_THREAD_DEPTH), viewer);
+    }
+
+    private static final int MAX_THREAD_DEPTH = 50;
+
+    /**
      * Renders post ids in the given order with the same visibility rules as every other read,
      * silently skipping posts the viewer may not see. The timeline module renders its candidates with it.
      */

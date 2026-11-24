@@ -19,11 +19,15 @@ public class PostRepository {
 
     /** A flat row for one post as seen by a viewer; reposts are hydrated in a second query. */
     record PostRow(long id, long authorId, String username, String displayName, String content,
-                   Long replyToId, Long repostOfId, int likeCount, int replyCount, int repostCount,
+                   Long replyToId, Long replyToUserId, String replyToUsername, String replyToDisplayName,
+                   Long repostOfId, int likeCount, int replyCount, int repostCount,
                    boolean likedByMe, boolean repostedByMe, OffsetDateTime createdAt) {
 
         PostView toView(PostView original) {
-            return new PostView(id, new UserSummary(authorId, username, displayName), content, replyToId,
+            UserSummary replyTo = replyToUserId == null
+                    ? null
+                    : new UserSummary(replyToUserId, replyToUsername, replyToDisplayName);
+            return new PostView(id, new UserSummary(authorId, username, displayName), content, replyToId, replyTo,
                     original, likeCount, replyCount, repostCount, likedByMe, repostedByMe, createdAt);
         }
     }
@@ -40,6 +44,8 @@ public class PostRepository {
 
     private static final String SELECT_VIEW = """
             SELECT p.id, p.author_id, u.username, u.display_name, p.content, p.reply_to_id,
+                   pu.id AS reply_to_user_id, pu.username AS reply_to_username,
+                   pu.display_name AS reply_to_display_name,
                    p.repost_of_id, p.like_count, p.reply_count, p.repost_count, p.created_at,
                    EXISTS (SELECT 1 FROM likes l
                             WHERE l.post_id = p.id AND l.user_id = :viewer) AS liked_by_me,
@@ -47,6 +53,8 @@ public class PostRepository {
                             WHERE r.repost_of_id = p.id AND r.author_id = :viewer) AS reposted_by_me
             FROM posts p
             JOIN users u ON u.id = p.author_id
+            LEFT JOIN posts parent ON parent.id = p.reply_to_id
+            LEFT JOIN users pu ON pu.id = parent.author_id
             WHERE NOT EXISTS (SELECT 1 FROM blocks b
                                WHERE (b.blocker_id = p.author_id AND b.blocked_id = :viewer)
                                   OR (b.blocker_id = :viewer AND b.blocked_id = p.author_id))
@@ -137,6 +145,27 @@ public class PostRepository {
                 .param("cursor", cursor, Types.BIGINT)
                 .param("limit", fetchSize)
                 .query(PostRow.class)
+                .list();
+    }
+
+    /**
+     * The chain of posts a reply answers, root first, excluding the post itself. Depth is capped
+     * so a pathological chain cannot make one request walk the whole table.
+     */
+    List<Long> ancestorIds(long postId, int maxDepth) {
+        return jdbc.sql("""
+                WITH RECURSIVE chain (id, reply_to_id, depth) AS (
+                    SELECT id, reply_to_id, 0 FROM posts WHERE id = :id
+                    UNION ALL
+                    SELECT p.id, p.reply_to_id, c.depth + 1
+                    FROM posts p JOIN chain c ON p.id = c.reply_to_id
+                    WHERE c.depth < :max
+                )
+                SELECT id FROM chain WHERE depth > 0 ORDER BY depth DESC
+                """)
+                .param("id", postId)
+                .param("max", maxDepth)
+                .query(Long.class)
                 .list();
     }
 
