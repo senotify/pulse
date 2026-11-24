@@ -257,14 +257,17 @@ main { min-width: 0; padding: 16px 0 96px; }
 
 /* ---------- post card ---------- */
 .feed { display: flex; flex-direction: column; gap: 10px; }
-.post { padding: 14px 16px; display: flex; gap: 12px; cursor: pointer; transition: border-color 0.15s; }
-.post:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.post-wrap { cursor: pointer; transition: border-color 0.15s; }
+.post-wrap:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.post { padding: 14px 16px; display: flex; gap: 12px; }
+.post-wrap.is-repost .post { padding-top: 4px; }
 .post-body { flex: 1; min-width: 0; }
 .post-meta { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .post-meta .name { font-weight: 700; }
 .post-meta .name:hover, .post-meta .handle:hover { text-decoration: underline; }
 .post-content { white-space: pre-wrap; overflow-wrap: anywhere; margin: 2px 0 8px; font-size: 15.5px; }
-.post-context { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); font-weight: 600; margin: -2px 0 8px 44px; }
+.post-context { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); font-weight: 600; padding: 10px 16px 0 44px; }
+.post-context a:hover { text-decoration: underline; }
 .post-context svg { width: 15px; height: 15px; }
 .reason {
   display: inline-flex;
