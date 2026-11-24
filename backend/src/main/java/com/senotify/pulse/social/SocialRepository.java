@@ -62,7 +62,7 @@ public class SocialRepository {
 
     List<UserSummary> followers(long userId, Long cursor, int fetchSize) {
         return jdbc.sql("""
-                SELECT u.id, u.username, u.display_name
+                SELECT u.id, u.username, u.display_name, u.avatar_key
                 FROM follows f JOIN users u ON u.id = f.follower_id
                 WHERE f.followee_id = :user AND (:cursor IS NULL OR u.id < :cursor)
                 ORDER BY u.id DESC
@@ -77,7 +77,7 @@ public class SocialRepository {
 
     List<UserSummary> following(long userId, Long cursor, int fetchSize) {
         return jdbc.sql("""
-                SELECT u.id, u.username, u.display_name
+                SELECT u.id, u.username, u.display_name, u.avatar_key
                 FROM follows f JOIN users u ON u.id = f.followee_id
                 WHERE f.follower_id = :user AND (:cursor IS NULL OR u.id < :cursor)
                 ORDER BY u.id DESC

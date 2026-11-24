@@ -63,7 +63,7 @@ public class UserRepository {
 
     Optional<Me> findMe(long id) {
         return jdbc.sql("""
-                SELECT id, username, email, display_name, bio, created_at FROM users WHERE id = :id
+                SELECT id, username, email, display_name, avatar_key, bio, created_at FROM users WHERE id = :id
                 """)
                 .param("id", id)
                 .query(Me.class)
@@ -84,7 +84,7 @@ public class UserRepository {
 
     Optional<UserProfile> findProfile(String username, long viewer) {
         return jdbc.sql("""
-                SELECT u.id, u.username, u.display_name, u.bio, u.created_at,
+                SELECT u.id, u.username, u.display_name, u.avatar_key, u.bio, u.created_at,
                        (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers,
                        (SELECT COUNT(*) FROM follows f WHERE f.follower_id = u.id) AS following,
                        (SELECT COUNT(*) FROM posts p

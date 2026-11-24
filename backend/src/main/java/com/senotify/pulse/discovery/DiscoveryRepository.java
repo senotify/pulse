@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 class DiscoveryRepository {
 
-    record Suggestion(long id, String username, String displayName, long mutuals, long followers) {
+    record Suggestion(long id, String username, String displayName, String avatarKey, long mutuals, long followers) {
     }
 
     private final JdbcClient jdbc;
@@ -41,7 +41,7 @@ class DiscoveryRepository {
      */
     List<Suggestion> suggestions(long viewer, int limit) {
         return jdbc.sql("""
-                SELECT u.id, u.username, u.display_name,
+                SELECT u.id, u.username, u.display_name, u.avatar_key,
                        (SELECT COUNT(*) FROM follows f1
                         JOIN follows f2 ON f2.follower_id = f1.followee_id
                         WHERE f1.follower_id = :viewer AND f2.followee_id = u.id) AS mutuals,

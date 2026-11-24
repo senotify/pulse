@@ -30,14 +30,14 @@ public final class IdentityDtos {
             @Size(max = 160) String bio) {
     }
 
-    public record Me(long id, String username, String email, String displayName, String bio,
+    public record Me(long id, String username, String email, String displayName, String avatarKey, String bio,
                      OffsetDateTime createdAt) {
     }
 
     public record AuthResponse(String accessToken, String tokenType, Instant expiresAt, Me user) {
     }
 
-    public record UserProfile(long id, String username, String displayName, String bio,
+    public record UserProfile(long id, String username, String displayName, String avatarKey, String bio,
                               OffsetDateTime createdAt, long followers, long following, long posts,
                               boolean followedByMe, boolean followsMe, boolean blockedByMe,
                               boolean mutedByMe) {

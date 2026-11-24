@@ -18,16 +18,17 @@ public class PostRepository {
     }
 
     /** A flat row for one post as seen by a viewer; reposts are hydrated in a second query. */
-    record PostRow(long id, long authorId, String username, String displayName, String content,
+    record PostRow(long id, long authorId, String username, String displayName, String avatarKey, String content,
                    Long replyToId, Long replyToUserId, String replyToUsername, String replyToDisplayName,
+                   String replyToAvatarKey,
                    Long repostOfId, int likeCount, int replyCount, int repostCount,
                    boolean likedByMe, boolean repostedByMe, OffsetDateTime createdAt) {
 
         PostView toView(PostView original) {
             UserSummary replyTo = replyToUserId == null
                     ? null
-                    : new UserSummary(replyToUserId, replyToUsername, replyToDisplayName);
-            return new PostView(id, new UserSummary(authorId, username, displayName), content, replyToId, replyTo,
+                    : new UserSummary(replyToUserId, replyToUsername, replyToDisplayName, replyToAvatarKey);
+            return new PostView(id, new UserSummary(authorId, username, displayName, avatarKey), content, replyToId, replyTo,
                     original, likeCount, replyCount, repostCount, likedByMe, repostedByMe, createdAt);
         }
     }
@@ -43,9 +44,9 @@ public class PostRepository {
     }
 
     private static final String SELECT_VIEW = """
-            SELECT p.id, p.author_id, u.username, u.display_name, p.content, p.reply_to_id,
+            SELECT p.id, p.author_id, u.username, u.display_name, u.avatar_key, p.content, p.reply_to_id,
                    pu.id AS reply_to_user_id, pu.username AS reply_to_username,
-                   pu.display_name AS reply_to_display_name,
+                   pu.display_name AS reply_to_display_name, pu.avatar_key AS reply_to_avatar_key,
                    p.repost_of_id, p.like_count, p.reply_count, p.repost_count, p.created_at,
                    EXISTS (SELECT 1 FROM likes l
                             WHERE l.post_id = p.id AND l.user_id = :viewer) AS liked_by_me,
