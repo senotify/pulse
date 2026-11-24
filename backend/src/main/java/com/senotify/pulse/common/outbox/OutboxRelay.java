@@ -34,17 +34,12 @@ public class OutboxRelay {
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
     private final List<OutboxEventHandler> handlers;
-    private final Clock clock;
+    private final Clock clock = Clock.systemUTC();
 
     public OutboxRelay(JdbcClient jdbc, ObjectMapper mapper, List<OutboxEventHandler> handlers) {
-        this(jdbc, mapper, handlers, Clock.systemUTC());
-    }
-
-    OutboxRelay(JdbcClient jdbc, ObjectMapper mapper, List<OutboxEventHandler> handlers, Clock clock) {
         this.jdbc = jdbc;
         this.mapper = mapper;
         this.handlers = handlers;
-        this.clock = clock;
     }
 
     /** Delivers every event that is currently due. Returns the number of events processed. */
