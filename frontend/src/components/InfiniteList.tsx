@@ -1,11 +1,11 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query';
 import type { CursorPage } from '../api/types';
-import { Empty, ErrorNote, Spinner } from './Status';
+import { ErrorNote, Spinner } from './Status';
 
 /**
  * Renders a cursor-paginated query and loads the next page when the end of the list scrolls
- * into view, with a button as the fallback.
+ * into view, with a "Show more" row as the fallback.
  */
 export function InfiniteList<T, P extends CursorPage<T>>({
   query,
@@ -26,7 +26,7 @@ export function InfiniteList<T, P extends CursorPage<T>>({
       ([entry]) => {
         if (entry.isIntersecting && !isFetchingNextPage) fetchNextPage();
       },
-      { rootMargin: '400px' },
+      { rootMargin: '600px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -38,23 +38,20 @@ export function InfiniteList<T, P extends CursorPage<T>>({
   let index = 0;
   const rows: ReactNode[] = [];
   for (const page of data.pages) {
-    for (const item of page.items) {
-      rows.push(render(item, index++, page));
-    }
+    for (const item of page.items) rows.push(render(item, index++, page));
   }
   if (rows.length === 0) return <>{empty}</>;
 
   return (
-    <div className="feed">
+    <div>
       {rows}
       <div ref={sentinel} />
       {isFetchingNextPage && <Spinner />}
       {hasNextPage && !isFetchingNextPage && (
-        <button className="btn btn-outline" onClick={() => fetchNextPage()}>
-          Load more
+        <button className="load-more" onClick={() => fetchNextPage()}>
+          Show more
         </button>
       )}
-      {!hasNextPage && index > 5 && <Empty title="You're all caught up" />}
     </div>
   );
 }
