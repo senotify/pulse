@@ -133,11 +133,15 @@ With a local JDK 21, `cd backend && ./gradlew test` and `./gradlew bootRun` work
 
 ## Web app (step 5)
 
-Vite + React 18 + TypeScript, with TanStack Query for server state and React Router. There's no UI framework: one stylesheet of design tokens with light and dark themes, and inline SVG icons. The gzipped bundle is 74 KB.
+Vite + React 18 + TypeScript, with TanStack Query for server state and React Router. The UI follows a classic three-column microblog layout: navigation on the left, a bordered timeline in the middle, discovery on the right. It uses its own branding, a light theme and a navy "dim" dark theme. There's no UI framework, just one stylesheet of design tokens and inline SVG icons. The gzipped bundle is 77 KB.
 
-- **Home**: a composer, then **For you** and **Following** tabs with infinite scroll. For You shows each post's reason ("Liked or reposted by @raka"). The **Ranking signals** toggle reveals the seven features and the score behind every recommendation.
-- **Profiles**: counts, a "follows you" badge, follow, mute, block (two-step confirm), editing your own name and bio, and tabs for posts, followers and following.
-- **Threads**: a post with its replies and a reply composer.
+- **Home**: a sticky header with **For you** and **Following** tabs; tap the active tab to refresh. For You shows each post's reason ("Liked or reposted by @raka"). The **Ranking signals** toggle reveals the seven features and the score behind every recommendation.
+- **Posting**: an inline composer and a **Post** button that opens a compose modal (a floating button on mobile). The textarea grows as you type, and a progress ring counts down from 280.
+- **Rich text**: #hashtags link to search, @mentions to profiles, and URLs open in a new tab.
+- **Right sidebar**: search, **Trending on Pulse** (the hashtags used in the most posts in the last 24 hours) and **Who to follow** (accounts your follows follow, then the most-followed).
+- **Explore**: post search, plus trends and suggestions on narrow screens.
+- **Profiles**: a banner with an overlapping avatar, a "Follows you" badge, a Following button that turns into Unfollow on hover, mute, block with a confirm step, editing your name and bio, and tabs for posts, followers and following.
+- **Threads**: a large focused post with a full timestamp and stats, a reply box, and replies.
 - **Feedback loop**: a post counts as an impression after 600 ms with at least half of it visible. Impressions and clicks are batched to `/api/interactions` with the feed surface, slot position and `modelVersion`, and flushed when the tab is hidden. These events drive the already-seen filter and click affinity in For You.
 - **Production**: a multi-stage image builds the SPA and serves it from nginx. nginx also proxies `/api` to the API container, so the browser only ever talks to one origin.
 
@@ -183,6 +187,9 @@ Auth is a stateless HS256 bearer JWT returned by register/login. GETs work anony
 | PUT / DELETE | `/api/posts/{id}/like` · `/repost` | Idempotent; acting on a repost targets its original |
 | GET | `/api/timeline/following` | Requires auth; the viewer's own posts plus those of followed accounts, newest first, replies excluded |
 | GET | `/api/timeline/for-you` | Requires auth; ranked recommendations with `source`, `reason`, `score` and `modelVersion`; `?explain=true` adds features |
+| GET | `/api/discover/trends` | Top 5 hashtags by distinct posts in the last 24 hours (cached for 1 minute) |
+| GET | `/api/discover/users?limit=3` | Requires auth; who to follow: second-degree accounts by number of mutual follows, then audience size |
+| GET | `/api/search/posts?q=` | Case-insensitive substring search over post text (2-100 characters), paginated |
 | POST | `/api/interactions` | Requires auth; up to 100 `IMPRESSION`, `CLICK` or `DWELL` events with optional `surface`, `position`, `dwellMs` and `modelVersion`; returns 202 |
 
 Blocks hide content in both directions and prevent follows, likes, replies and reposts. Mutes hide an author from the Following timeline. Every state change writes a domain event to `outbox_events` in the same transaction.
