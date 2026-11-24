@@ -56,6 +56,22 @@ public class Api {
         return send(put("/api/posts/" + postId + "/repost"), user, null).path("id").asLong();
     }
 
+    public void like(User user, long postId) throws Exception {
+        send(put("/api/posts/" + postId + "/like"), user, null);
+    }
+
+    public JsonNode forYou(User user, String cursor, int limit, boolean explain) throws Exception {
+        String query = "?limit=" + limit + (cursor == null ? "" : "&cursor=" + cursor) + (explain ? "&explain=true" : "");
+        return read(mvc.perform(auth(get("/api/timeline/for-you" + query), user)).andExpect(status().isOk()));
+    }
+
+    /** Sends a raw interaction batch and returns the HTTP status. */
+    public int interactions(User user, String body) throws Exception {
+        return mvc.perform(auth(MockMvcRequestBuilders.post("/api/interactions"), user)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andReturn().getResponse().getStatus();
+    }
+
     public void follow(User user, User target) throws Exception {
         edge(put("/api/users/" + target.username() + "/follow"), user);
     }
