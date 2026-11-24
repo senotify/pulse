@@ -1,5 +1,6 @@
 package com.senotify.pulse.post;
 
+import com.senotify.pulse.common.SnowflakeIds;
 import com.senotify.pulse.identity.UserSummary;
 import java.sql.Types;
 import java.time.OffsetDateTime;
@@ -7,7 +8,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -62,23 +62,27 @@ public class PostRepository {
             """;
 
     private final JdbcClient jdbc;
+    private final SnowflakeIds ids;
 
-    PostRepository(JdbcClient jdbc) {
+    PostRepository(JdbcClient jdbc, SnowflakeIds ids) {
         this.jdbc = jdbc;
+        this.ids = ids;
     }
 
+    /** Inserts a post under a fresh Snowflake id, which is time-ordered like the old sequence. */
     long insert(long authorId, String content, Long replyToId, Long repostOfId) {
-        var keys = new GeneratedKeyHolder();
+        long id = ids.next();
         jdbc.sql("""
-                INSERT INTO posts (author_id, content, reply_to_id, repost_of_id)
-                VALUES (:author, :content, :replyTo, :repostOf)
+                INSERT INTO posts (id, author_id, content, reply_to_id, repost_of_id)
+                VALUES (:id, :author, :content, :replyTo, :repostOf)
                 """)
+                .param("id", id)
                 .param("author", authorId)
                 .param("content", content, Types.VARCHAR)
                 .param("replyTo", replyToId, Types.BIGINT)
                 .param("repostOf", repostOfId, Types.BIGINT)
-                .update(keys, "id");
-        return keys.getKeyAs(Long.class);
+                .update();
+        return id;
     }
 
     Optional<PostCore> findCore(long id) {
