@@ -74,7 +74,17 @@ export interface ForYouPage extends CursorPage<ForYouItem> {
   modelVersion: string;
 }
 
-export type Surface = 'FOR_YOU' | 'FOLLOWING' | 'PROFILE' | 'POST';
+export interface Trend {
+  tag: string;
+  posts: number;
+}
+
+export interface Suggestion extends UserSummary {
+  mutuals: number;
+  followers: number;
+}
+
+export type Surface ='FOR_YOU' | 'FOLLOWING' | 'PROFILE' | 'POST';
 
 export interface InteractionEvent {
   postId: number;

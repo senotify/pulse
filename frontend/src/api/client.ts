@@ -5,6 +5,8 @@ import type {
   InteractionEvent,
   Me,
   PostView,
+  Suggestion,
+  Trend,
   UserProfile,
   UserSummary,
 } from './types';
@@ -114,6 +116,11 @@ export const api = {
     request<CursorPage<PostView>>('GET', `/timeline/following${qs({ cursor })}`),
   forYou: (cursor: string | null | undefined, explain: boolean) =>
     request<ForYouPage>('GET', `/timeline/for-you${qs({ cursor, explain })}`),
+
+  trends: () => request<Trend[]>('GET', '/discover/trends'),
+  suggestions: (limit = 3) => request<Suggestion[]>('GET', `/discover/users${qs({ limit })}`),
+  search: (q: string, cursor?: string | null) =>
+    request<CursorPage<PostView>>('GET', `/search/posts${qs({ q, cursor })}`),
 
   /** keepalive lets a final batch survive the page being closed. */
   interactions: (events: InteractionEvent[]) =>
