@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { avatarHue, initials } from '../lib/format';
+import { avatarHue } from '../lib/format';
 import type { UserSummary } from '../api/types';
 
-/** The profile photo, or coloured initials when there is none (or it fails to load). */
+/** The profile photo, or the default egg on a per-user colour when there is none (or it fails to load). */
 export function Avatar({ user, size = 40 }: { user: UserSummary; size?: number }) {
   const [broken, setBroken] = useState<string | null>(null);
   const src = user.avatarKey ? `/api/avatars/${user.id}?v=${user.avatarKey}` : null;
@@ -23,19 +23,20 @@ export function Avatar({ user, size = 40 }: { user: UserSummary; size?: number }
     );
   }
 
-  const hue = avatarHue(user.id);
+  return <DefaultEgg hue={avatarHue(user.id)} size={size} />;
+}
+
+/** A plain egg, slightly tilted, on a colour derived from the user id so people stay distinguishable. */
+function DefaultEgg({ hue, size }: { hue: number; size: number }) {
   return (
-    <span
-      className="avatar"
-      style={{
-        width: size,
-        height: size,
-        fontSize: size * 0.38,
-        background: `linear-gradient(135deg, hsl(${hue} 62% 52%), hsl(${(hue + 40) % 360} 62% 42%))`,
-      }}
-      aria-hidden="true"
-    >
-      {initials(user.displayName || user.username)}
-    </span>
+    <svg className="avatar" width={size} height={size} viewBox="0 0 100 100" aria-hidden="true" style={{ width: size, height: size }}>
+      <circle cx="50" cy="50" r="50" fill={`hsl(${hue} 55% 55%)`} />
+      <path
+        d="M50 20c-15 0-25 22-25 38 0 15 11 24 25 24s25-9 25-24c0-16-10-38-25-38z"
+        fill="#fff"
+        opacity="0.92"
+        transform="rotate(-12 50 52)"
+      />
+    </svg>
   );
 }
