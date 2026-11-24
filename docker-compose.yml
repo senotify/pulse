@@ -1,6 +1,7 @@
 # Local development.
 #   docker compose up -d            # PostgreSQL + Redis
-#   docker compose --profile api up # ... + API on :8080 (PULSE_API_PORT to change)
+#   docker compose --profile api up # ... + API on :8080 and web app on :3000
+#                                     (PULSE_API_PORT / PULSE_WEB_PORT to change)
 services:
   redis:
     image: redis:7-alpine
@@ -43,6 +44,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  web:
+    profiles: ["api"]
+    build: ./frontend
+    ports:
+      - "${PULSE_WEB_PORT:-3000}:80"
+    depends_on:
+      - api
 
 volumes:
   pulse-pg:
