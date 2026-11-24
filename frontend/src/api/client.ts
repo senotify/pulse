@@ -50,12 +50,14 @@ async function request<T>(method: string, path: string, body?: unknown, init?: R
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const form = body instanceof FormData;
+  // FormData sets its own multipart boundary header; everything else is JSON.
+  if (body !== undefined && !form) headers['Content-Type'] = 'application/json';
 
   const res = await fetch(`/api${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : form ? (body as FormData) : JSON.stringify(body),
     ...init,
   });
 
@@ -93,6 +95,12 @@ export const api = {
   login: (body: { login: string; password: string }) => request<AuthResponse>('POST', '/auth/login', body),
   me: () => request<Me>('GET', '/me'),
   updateMe: (body: { displayName?: string; bio?: string }) => request<Me>('PATCH', '/me', body),
+  uploadAvatar: (image: Blob) => {
+    const form = new FormData();
+    form.append('file', image, 'avatar.jpg');
+    return request<Me>('PUT', '/me/avatar', form);
+  },
+  removeAvatar: () => request<Me>('DELETE', '/me/avatar'),
 
   profile: (username: string) => request<UserProfile>('GET', `/users/${encodeURIComponent(username)}`),
   userPosts: (username: string, cursor?: string | null) =>

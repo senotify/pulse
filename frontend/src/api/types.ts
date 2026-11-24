@@ -4,6 +4,8 @@ export interface UserSummary {
   id: number;
   username: string;
   displayName: string;
+  /** Null without a photo; otherwise the image is served at /api/avatars/{id}?v={avatarKey}. */
+  avatarKey: string | null;
 }
 
 export interface Me extends UserSummary {
