@@ -141,7 +141,8 @@ Vite + React 18 + TypeScript, with TanStack Query for server state and React Rou
 - **Right sidebar**: search, **Trending on Pulse** (the hashtags used in the most posts in the last 24 hours) and **Who to follow** (accounts your follows follow, then the most-followed).
 - **Explore**: post search, plus trends and suggestions on narrow screens.
 - **Profiles**: a banner with an overlapping avatar, a "Follows you" badge, a Following button that turns into Unfollow on hover, mute, block with a confirm step, editing your name and bio, and tabs for posts, followers and following.
-- **Threads**: a large focused post with a full timestamp and stats, a reply box, and replies.
+- **Threads**: the conversation above a reply, joined by a connector line, then the focused post with a full timestamp and stats, a reply box, and replies. Replies say "Replying to @user".
+- **Profile photos**: click your own avatar to upload. The browser crops and resizes to 400×400; the server decodes and re-encodes to JPEG, which rejects non-images, checks dimensions before decoding (6000 px max, so decompression bombs fail cheaply) and strips EXIF/GPS metadata. Photos live in PostgreSQL and are served from `/api/avatars/{id}?v={key}` with a one-year immutable cache, where the key changes on every upload.
 - **Feedback loop**: a post counts as an impression after 600 ms with at least half of it visible. Impressions and clicks are batched to `/api/interactions` with the feed surface, slot position and `modelVersion`, and flushed when the tab is hidden. These events drive the already-seen filter and click affinity in For You.
 - **Production**: a multi-stage image builds the SPA and serves it from nginx. nginx also proxies `/api` to the API container, so the browser only ever talks to one origin.
 
@@ -184,6 +185,9 @@ Auth is a stateless HS256 bearer JWT returned by register/login. GETs work anony
 | POST | `/api/posts` | `{content, replyToId?}`, at most 280 characters |
 | GET / DELETE | `/api/posts/{id}` | Only the author can delete |
 | GET | `/api/posts/{id}/replies` | Oldest first |
+| GET | `/api/posts/{id}/ancestors` | The conversation above a reply, root first (recursive CTE, depth ≤ 50) |
+| PUT / DELETE | `/api/me/avatar` | Requires auth; multipart `file` up to 5 MB (JPEG, PNG or GIF), normalized to a 400×400 JPEG |
+| GET | `/api/avatars/{userId}?v={avatarKey}` | The profile photo, cacheable for a year |
 | PUT / DELETE | `/api/posts/{id}/like` · `/repost` | Idempotent; acting on a repost targets its original |
 | GET | `/api/timeline/following` | Requires auth; the viewer's own posts plus those of followed accounts, newest first, replies excluded |
 | GET | `/api/timeline/for-you` | Requires auth; ranked recommendations with `source`, `reason`, `score` and `modelVersion`; `?explain=true` adds features |
