@@ -32,6 +32,8 @@ services:
   api:
     profiles: ["api"]
     build: ./backend
+    # The web image's nginx proxies to "pulse-api", the container name used in production.
+    container_name: pulse-api
     environment:
       PULSE_DB_URL: jdbc:postgresql://postgres:5432/pulse
       PULSE_DB_USER: pulse
