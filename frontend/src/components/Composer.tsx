@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { PostView } from '../api/types';
+import type { MediaView, PostView } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
+import { fittedJpeg } from '../lib/image';
 import { Avatar } from './Avatar';
+import { CloseIcon, ImageIcon } from './Icons';
 
 const MAX = 280;
+const MAX_PHOTOS = 4;
+
+/** A photo picked in the composer. It uploads immediately, so it is usually ready before the text is. */
+interface Attachment {
+  key: string;
+  preview: string;
+  status: 'uploading' | 'ready' | 'error';
+  media?: MediaView;
+  error?: string;
+}
 
 export function Composer({
   replyToId,
@@ -21,7 +33,9 @@ export function Composer({
   const { me } = useAuth();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const area = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
 
   // Grow with the text instead of scrolling inside a tiny box.
   useEffect(() => {
@@ -31,10 +45,42 @@ export function Composer({
     el.style.height = `${el.scrollHeight}px`;
   }, [text]);
 
+  // Free preview object URLs when the composer goes away.
+  const previews = useRef<string[]>([]);
+  useEffect(() => () => previews.current.forEach((url) => URL.revokeObjectURL(url)), []);
+
+  const update = (key: string, patch: Partial<Attachment>) =>
+    setAttachments((list) => list.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+
+  function addFiles(files: FileList | null) {
+    if (!files) return;
+    const room = MAX_PHOTOS - attachments.length;
+    for (const file of Array.from(files).slice(0, room)) {
+      const key = `${Date.now()}-${Math.random()}`;
+      const preview = URL.createObjectURL(file);
+      previews.current.push(preview);
+      setAttachments((list) => [...list, { key, preview, status: 'uploading' }]);
+      fittedJpeg(file)
+        .then((blob) => api.uploadMedia(blob))
+        .then((media) => update(key, { status: 'ready', media }))
+        .catch((e: unknown) => update(key, { status: 'error', error: e instanceof Error ? e.message : 'Upload failed' }));
+    }
+  }
+
+  function remove(key: string) {
+    setAttachments((list) => list.filter((a) => a.key !== key));
+  }
+
   const mutation = useMutation({
-    mutationFn: () => api.createPost(text.trim(), replyToId),
+    mutationFn: () =>
+      api.createPost(
+        text.trim(),
+        replyToId,
+        attachments.flatMap((a) => (a.media ? [a.media.id] : [])),
+      ),
     onSuccess: (post) => {
       setText('');
+      setAttachments([]);
       queryClient.invalidateQueries({ queryKey: ['timeline'] });
       queryClient.invalidateQueries({ queryKey: ['user-posts', post.author.username] });
       queryClient.invalidateQueries({ queryKey: ['profile', post.author.username] });
@@ -50,10 +96,13 @@ export function Composer({
   if (!me) return null;
   const length = text.trim().length;
   const remaining = MAX - text.length;
+  const uploading = attachments.some((a) => a.status === 'uploading');
+  const ready = attachments.filter((a) => a.status === 'ready').length;
+  const canPost = (length > 0 || ready > 0) && remaining >= 0 && !uploading && !mutation.isPending;
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (length > 0 && remaining >= 0 && !mutation.isPending) mutation.mutate();
+    if (canPost) mutation.mutate();
   }
 
   return (
@@ -67,15 +116,54 @@ export function Composer({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(e);
           }}
+          onPaste={(e) => {
+            if (e.clipboardData.files.length > 0) addFiles(e.clipboardData.files);
+          }}
           placeholder={placeholder}
           aria-label={placeholder}
           autoFocus={autoFocus}
           rows={1}
         />
+        {attachments.length > 0 && (
+          <div className="attachments">
+            {attachments.map((a) => (
+              <div key={a.key} className={`attachment ${a.status}`}>
+                <img src={a.preview} alt="" />
+                <button type="button" className="remove" onClick={() => remove(a.key)} aria-label="Remove photo">
+                  <CloseIcon />
+                </button>
+                {a.status === 'error' && <span className="badge-error">{a.error}</span>}
+              </div>
+            ))}
+          </div>
+        )}
         {mutation.isError && <div className="error">{(mutation.error as Error).message}</div>}
         <div className="composer-footer">
+          <div className="composer-tools">
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => picker.current?.click()}
+              disabled={attachments.length >= MAX_PHOTOS}
+              aria-label="Add photos"
+              title={`Add up to ${MAX_PHOTOS} photos`}
+            >
+              <ImageIcon />
+            </button>
+            <input
+              ref={picker}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              multiple
+              hidden
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+          </div>
           {text.length > 0 && <CharacterRing remaining={remaining} />}
-          <button className="btn btn-primary" disabled={length === 0 || remaining < 0 || mutation.isPending}>
+          <button className="btn btn-primary" disabled={!canPost}>
             {replyToId ? 'Reply' : 'Post'}
           </button>
         </div>
