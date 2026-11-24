@@ -583,3 +583,23 @@ button:disabled { cursor: default; opacity: 0.5; }
   .auth-main { align-items: center; }
   .auth-form h1 { font-size: 31px; }
 }
+
+/* own profile: click the avatar to change the photo */
+.avatar-edit { position: relative; padding: 0; background: none; cursor: pointer; display: block; }
+.avatar-edit .avatar { display: grid; }
+.avatar-edit-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.avatar-edit-overlay svg { width: 30px; height: 30px; }
+.avatar-edit:hover .avatar-edit-overlay,
+.avatar-edit:focus-visible .avatar-edit-overlay,
+.avatar-edit:disabled .avatar-edit-overlay { opacity: 1; }
+img.avatar { display: block; background: var(--surface-2); }

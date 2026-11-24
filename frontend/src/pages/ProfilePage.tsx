@@ -1,16 +1,17 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { CursorPage, Me, PostView, UserProfile, UserSummary } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { Avatar } from '../components/Avatar';
-import { BackIcon, CalendarIcon } from '../components/Icons';
+import { BackIcon, CalendarIcon, CameraIcon } from '../components/Icons';
 import { InfiniteList } from '../components/InfiniteList';
 import { PostCard } from '../components/PostCard';
 import { RichText } from '../components/RichText';
 import { Empty, ErrorNote, Spinner } from '../components/Status';
 import { avatarHue, compactCount } from '../lib/format';
+import { squareJpeg } from '../lib/image';
 
 type Tab = 'posts' | 'followers' | 'following';
 
@@ -86,9 +87,7 @@ function ProfileHeader({ profile, onShow }: { profile: UserProfile; onShow: (tab
       />
       <div className="profile-head">
         <div className="profile-actions">
-          <div className="profile-avatar">
-            <Avatar user={profile} size={134} />
-          </div>
+          <ProfileAvatar profile={profile} editable={isMe} />
           {isMe ? (
             <button className="btn btn-outline" onClick={() => setEditing((v) => !v)}>
               {editing ? 'Cancel' : 'Edit profile'}
@@ -180,12 +179,79 @@ function ProfileHeader({ profile, onShow }: { profile: UserProfile; onShow: (tab
   );
 }
 
+/**
+ * The large profile avatar. On your own profile it is a button that opens a file picker; the
+ * photo is cropped and resized in the browser, uploaded, and every cached view is refreshed.
+ */
+function ProfileAvatar({ profile, editable }: { profile: UserProfile; editable: boolean }) {
+  const { updateMe } = useAuth();
+  const queryClient = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = useMutation({
+    mutationFn: async (file: File) => api.uploadAvatar(await squareJpeg(file)),
+    onSuccess: (me) => {
+      setError(null);
+      updateMe(me);
+      // The new key changes every embedded avatar URL, so refetch everything that shows users.
+      queryClient.invalidateQueries();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Upload failed'),
+  });
+
+  if (!editable) {
+    return (
+      <div className="profile-avatar">
+        <Avatar user={profile} size={134} />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="profile-avatar avatar-edit"
+        onClick={() => input.current?.click()}
+        disabled={upload.isPending}
+        aria-label="Change profile photo"
+        title="Change profile photo"
+      >
+        <Avatar user={profile} size={134} />
+        <span className="avatar-edit-overlay">{upload.isPending ? <span className="spinner" style={{ margin: 0 }} /> : <CameraIcon />}</span>
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = ''; // allow choosing the same file again
+          if (file) upload.mutate(file);
+        }}
+      />
+      {error && <div className="error" style={{ marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+}
+
 function EditProfile({ profile, onDone }: { profile: UserProfile; onDone: (me: Me) => void }) {
+  const queryClient = useQueryClient();
+  const { updateMe } = useAuth();
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [bio, setBio] = useState(profile.bio);
   const save = useMutation({
     mutationFn: () => api.updateMe({ displayName: displayName.trim(), bio }),
     onSuccess: onDone,
+  });
+  const removePhoto = useMutation({
+    mutationFn: api.removeAvatar,
+    onSuccess: (me) => {
+      updateMe(me);
+      queryClient.invalidateQueries();
+    },
   });
 
   function submit(e: FormEvent) {
@@ -208,10 +274,16 @@ function EditProfile({ profile, onDone }: { profile: UserProfile; onDone: (me: M
         <textarea className="input textarea" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={160} />
       </label>
       {save.isError && <div className="error">{(save.error as Error).message}</div>}
-      <div>
+      <div className="row">
         <button className="btn" disabled={save.isPending || !displayName.trim()}>
           Save
         </button>
+        {profile.avatarKey && (
+          <button type="button" className="btn btn-outline" disabled={removePhoto.isPending} onClick={() => removePhoto.mutate()}>
+            Remove photo
+          </button>
+        )}
+        <span className="muted small">Click your avatar to change the photo.</span>
       </div>
     </form>
   );
