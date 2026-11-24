@@ -1,8 +1,8 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { CursorPage, Me, PostView, UserProfile, UserSummary } from '../api/types';
+import type { CursorPage, Me, PostView, ProfileFilter, UserProfile, UserSummary } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { BackIcon, CalendarIcon, CameraIcon } from '../components/Icons';
@@ -13,12 +13,21 @@ import { Empty, ErrorNote, Spinner } from '../components/Status';
 import { avatarHue, compactCount } from '../lib/format';
 import { squareJpeg } from '../lib/image';
 
-type Tab = 'posts' | 'followers' | 'following';
+/** The three tabs, plus the follower lists that open from the counts. */
+type Tab = ProfileFilter | 'followers' | 'following';
+
+const TABS: { id: ProfileFilter; label: string }[] = [
+  { id: 'posts', label: 'Posts' },
+  { id: 'replies', label: 'Posts & replies' },
+  { id: 'media', label: 'Media' },
+];
 
 export function ProfilePage() {
   const { username = '' } = useParams();
   const [tab, setTab] = useState<Tab>('posts');
   const navigate = useNavigate();
+  // A different profile starts on Posts again.
+  useEffect(() => setTab('posts'), [username]);
   const profile = useQuery({ queryKey: ['profile', username], queryFn: () => api.profile(username) });
 
   return (
@@ -42,16 +51,23 @@ export function ProfilePage() {
         <>
           <ProfileHeader profile={profile.data} onShow={setTab} />
           <div className="tabs" role="tablist" style={{ borderBottom: '1px solid var(--border)' }}>
-            {(['posts', 'followers', 'following'] as Tab[]).map((t) => (
-              <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-                <span>{t[0].toUpperCase() + t.slice(1)}</span>
+            {TABS.map((t) => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+                <span>{t.label}</span>
               </button>
             ))}
           </div>
-          {tab === 'posts' ? (
-            <UserPosts username={profile.data.username} />
+          {tab === 'followers' || tab === 'following' ? (
+            <>
+              <div className="column-title" style={{ minHeight: 44, borderBottom: '1px solid var(--border)' }}>
+                <h2 style={{ fontSize: 17, margin: 0 }}>{tab === 'followers' ? 'Followers' : 'Following'}</h2>
+              </div>
+              <UserList username={profile.data.username} kind={tab} />
+            </>
+          ) : tab === 'media' ? (
+            <UserMedia username={profile.data.username} />
           ) : (
-            <UserList username={profile.data.username} kind={tab} />
+            <UserPosts username={profile.data.username} filter={tab} />
           )}
         </>
       )}
@@ -289,10 +305,10 @@ function EditProfile({ profile, onDone }: { profile: UserProfile; onDone: (me: M
   );
 }
 
-function UserPosts({ username }: { username: string }) {
+function UserPosts({ username, filter }: { username: string; filter: 'posts' | 'replies' }) {
   const query = useInfiniteQuery({
-    queryKey: ['user-posts', username],
-    queryFn: ({ pageParam }) => api.userPosts(username, pageParam),
+    queryKey: ['user-posts', username, filter],
+    queryFn: ({ pageParam }) => api.userPosts(username, filter, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
@@ -302,6 +318,47 @@ function UserPosts({ username }: { username: string }) {
       empty={<Empty title={`@${username} hasn't posted`}>When they do, their posts will show up here.</Empty>}
       render={(post, index) => <PostCard key={post.id} post={post} surface="PROFILE" position={index} />}
     />
+  );
+}
+
+/** The Media tab: a grid of the user's photos; each tile opens its post. */
+function UserMedia({ username }: { username: string }) {
+  const query = useInfiniteQuery({
+    queryKey: ['user-posts', username, 'media'],
+    queryFn: ({ pageParam }) => api.userPosts(username, 'media', pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  });
+  const sentinel = useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasNextPage) return;
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && !isFetchingNextPage && fetchNextPage(), {
+      rootMargin: '600px',
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  if (query.isPending) return <Spinner />;
+  if (query.error) return <ErrorNote error={query.error} />;
+  const tiles = query.data.pages.flatMap((page) => page.items.flatMap((post) => post.media.map((m) => ({ post, m }))));
+  if (tiles.length === 0) {
+    return <Empty title={`@${username} hasn't posted photos`}>When they do, they'll show up here.</Empty>;
+  }
+  return (
+    <>
+      <div className="media-tab">
+        {tiles.map(({ post, m }) => (
+          <Link key={m.id} to={`/p/${post.id}`} title={post.content ?? ''}>
+            <img src={`/api/media/${m.id}`} alt="" loading="lazy" decoding="async" />
+          </Link>
+        ))}
+      </div>
+      <div ref={sentinel} />
+      {isFetchingNextPage && <Spinner />}
+    </>
   );
 }
 
