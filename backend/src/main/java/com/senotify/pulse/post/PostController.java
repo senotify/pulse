@@ -1,0 +1,86 @@
+package com.senotify.pulse.post;
+
+import com.senotify.pulse.common.CursorPage;
+import com.senotify.pulse.common.PageParams;
+import com.senotify.pulse.common.Viewer;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api")
+class PostController {
+
+    record CreatePostRequest(@NotBlank @Size(max = 280) String content, Long replyToId) {
+    }
+
+    private final PostService posts;
+
+    PostController(PostService posts) {
+        this.posts = posts;
+    }
+
+    @PostMapping("/posts")
+    @ResponseStatus(HttpStatus.CREATED)
+    PostView create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreatePostRequest request) {
+        return posts.create(Viewer.id(jwt), request.content(), request.replyToId());
+    }
+
+    @GetMapping("/posts/{id}")
+    PostView get(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        return posts.get(id, Viewer.idOrAnonymous(jwt));
+    }
+
+    @DeleteMapping("/posts/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void delete(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        posts.delete(Viewer.id(jwt), id);
+    }
+
+    @GetMapping("/posts/{id}/replies")
+    CursorPage<PostView> replies(@PathVariable long id, @AuthenticationPrincipal Jwt jwt,
+                                 @RequestParam(required = false) String cursor,
+                                 @RequestParam(required = false) Integer limit) {
+        return posts.replies(id, Viewer.idOrAnonymous(jwt), PageParams.of(cursor, limit));
+    }
+
+    @PutMapping("/posts/{id}/like")
+    PostView like(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        return posts.like(Viewer.id(jwt), id);
+    }
+
+    @DeleteMapping("/posts/{id}/like")
+    PostView unlike(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        return posts.unlike(Viewer.id(jwt), id);
+    }
+
+    @PutMapping("/posts/{id}/repost")
+    PostView repost(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        return posts.repost(Viewer.id(jwt), id);
+    }
+
+    @DeleteMapping("/posts/{id}/repost")
+    PostView unrepost(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
+        return posts.unrepost(Viewer.id(jwt), id);
+    }
+
+    @GetMapping("/users/{username}/posts")
+    CursorPage<PostView> byAuthor(@PathVariable String username, @AuthenticationPrincipal Jwt jwt,
+                                  @RequestParam(required = false) String cursor,
+                                  @RequestParam(required = false) Integer limit) {
+        return posts.byAuthor(username, Viewer.idOrAnonymous(jwt), PageParams.of(cursor, limit));
+    }
+}
