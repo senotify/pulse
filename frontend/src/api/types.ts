@@ -33,6 +33,12 @@ export interface UserProfile extends UserSummary {
   mutedByMe: boolean;
 }
 
+export interface MediaView {
+  id: number;
+  width: number;
+  height: number;
+}
+
 export interface PostView {
   id: number;
   author: UserSummary;
@@ -40,6 +46,8 @@ export interface PostView {
   replyToId: number | null;
   /** Author of the parent post, for "Replying to @user". */
   replyTo: UserSummary | null;
+  /** Attached photos in display order, served at /api/media/{id}. */
+  media: MediaView[];
   repostOf: PostView | null;
   likeCount: number;
   replyCount: number;
@@ -98,3 +106,6 @@ export interface InteractionEvent {
   dwellMs?: number;
   modelVersion?: string;
 }
+
+/** Profile tabs: posts without replies, everything, or posts with photos. */
+export type ProfileFilter = 'posts' | 'replies' | 'media';

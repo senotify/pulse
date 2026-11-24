@@ -4,7 +4,9 @@ import type {
   ForYouPage,
   InteractionEvent,
   Me,
+  MediaView,
   PostView,
+  ProfileFilter,
   Suggestion,
   Trend,
   UserProfile,
@@ -103,8 +105,8 @@ export const api = {
   removeAvatar: () => request<Me>('DELETE', '/me/avatar'),
 
   profile: (username: string) => request<UserProfile>('GET', `/users/${encodeURIComponent(username)}`),
-  userPosts: (username: string, cursor?: string | null) =>
-    request<CursorPage<PostView>>('GET', `/users/${encodeURIComponent(username)}/posts${qs({ cursor })}`),
+  userPosts: (username: string, filter: ProfileFilter, cursor?: string | null) =>
+    request<CursorPage<PostView>>('GET', `/users/${encodeURIComponent(username)}/posts${qs({ filter, cursor })}`),
   followers: (username: string, cursor?: string | null) =>
     request<CursorPage<UserSummary>>('GET', `/users/${encodeURIComponent(username)}/followers${qs({ cursor })}`),
   following: (username: string, cursor?: string | null) =>
@@ -112,7 +114,13 @@ export const api = {
   setEdge: (username: string, edge: 'follow' | 'mute' | 'block', on: boolean) =>
     request<void>(on ? 'PUT' : 'DELETE', `/users/${encodeURIComponent(username)}/${edge}`),
 
-  createPost: (content: string, replyToId?: number) => request<PostView>('POST', '/posts', { content, replyToId }),
+  createPost: (content: string, replyToId?: number, mediaIds: number[] = []) =>
+    request<PostView>('POST', '/posts', { content, replyToId, mediaIds }),
+  uploadMedia: (image: Blob) => {
+    const form = new FormData();
+    form.append('file', image, 'photo.jpg');
+    return request<MediaView>('POST', '/media', form);
+  },
   post: (id: number) => request<PostView>('GET', `/posts/${id}`),
   deletePost: (id: number) => request<void>('DELETE', `/posts/${id}`),
   ancestors: (id: number) => request<PostView[]>('GET', `/posts/${id}/ancestors`),
