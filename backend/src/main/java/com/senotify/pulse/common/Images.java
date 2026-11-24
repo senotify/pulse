@@ -1,6 +1,5 @@
-package com.senotify.pulse.identity;
+package com.senotify.pulse.common;
 
-import com.senotify.pulse.common.ApiException;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -18,22 +17,41 @@ import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
 
 /**
- * Turns an uploaded image into a square 400x400 JPEG. Re-encoding means only real images are stored,
- * metadata (EXIF, including GPS location) is stripped, and every avatar has a predictable size.
- * Dimensions are checked from the header before decoding, so a tiny file that declares a huge
- * canvas (a decompression bomb) is rejected without allocating it.
+ * Normalizes uploaded images to JPEG. Re-encoding means only real images are stored, metadata
+ * (EXIF, including GPS location) is stripped, and sizes are predictable. Dimensions are read from
+ * the header before decoding, so a small file declaring a huge canvas (a decompression bomb) is
+ * rejected without allocating it.
  */
-final class AvatarImages {
+public final class Images {
 
-    static final int SIZE = 400;
-    static final int MAX_DIMENSION = 6000;
-    static final int MIN_DIMENSION = 32;
-    private static final float QUALITY = 0.88f;
-
-    private AvatarImages() {
+    public record Jpeg(byte[] bytes, int width, int height) {
     }
 
-    static byte[] normalize(byte[] upload) {
+    static final int MAX_DIMENSION = 6000;
+    static final int MIN_DIMENSION = 32;
+    private static final float QUALITY = 0.86f;
+
+    private Images() {
+    }
+
+    /** Centre-cropped square of {@code size} px (profile photos). */
+    public static Jpeg square(byte[] upload, int size) {
+        BufferedImage source = decode(upload);
+        int side = Math.min(source.getWidth(), source.getHeight());
+        BufferedImage crop = source.getSubimage((source.getWidth() - side) / 2, (source.getHeight() - side) / 2, side, side);
+        return encode(resize(crop, size, size));
+    }
+
+    /** Keeps the aspect ratio, shrinking so the longest side is at most {@code maxSide} px (post photos). */
+    public static Jpeg fit(byte[] upload, int maxSide) {
+        BufferedImage source = decode(upload);
+        double scale = Math.min(1.0, (double) maxSide / Math.max(source.getWidth(), source.getHeight()));
+        int width = Math.max(1, (int) Math.round(source.getWidth() * scale));
+        int height = Math.max(1, (int) Math.round(source.getHeight() * scale));
+        return encode(resize(source, width, height));
+    }
+
+    private static BufferedImage decode(byte[] upload) {
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(upload))) {
             Iterator<ImageReader> readers = in == null ? null : ImageIO.getImageReaders(in);
             if (readers == null || !readers.hasNext()) {
@@ -50,48 +68,43 @@ final class AvatarImages {
                 if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
                     throw ApiException.badRequest("Image is too small (min " + MIN_DIMENSION + " px per side)");
                 }
-                return encodeJpeg(squareCrop(reader.read(0)));
+                return reader.read(0);
             } finally {
                 reader.dispose();
             }
+        } catch (ApiException e) {
+            throw e;
         } catch (IOException | RuntimeException e) {
-            if (e instanceof ApiException api) {
-                throw api;
-            }
             throw ApiException.badRequest("Could not read that image");
         }
     }
 
-    /** Centre crop to a square, scaled to SIZE, flattened onto white (JPEG has no transparency). */
-    private static BufferedImage squareCrop(BufferedImage source) {
-        int side = Math.min(source.getWidth(), source.getHeight());
-        int x = (source.getWidth() - side) / 2;
-        int y = (source.getHeight() - side) / 2;
-
-        BufferedImage current = source.getSubimage(x, y, side, side);
-        // Halve repeatedly before the final step: a single big bicubic downscale aliases badly.
-        while (current.getWidth() >= SIZE * 2) {
-            current = scale(current, current.getWidth() / 2);
+    /** Halves repeatedly before the final step, since one big bicubic downscale aliases badly. */
+    private static BufferedImage resize(BufferedImage source, int width, int height) {
+        BufferedImage current = source;
+        while (current.getWidth() >= width * 2 && current.getHeight() >= height * 2) {
+            current = draw(current, current.getWidth() / 2, current.getHeight() / 2);
         }
-        return scale(current, SIZE);
+        return draw(current, width, height);
     }
 
-    private static BufferedImage scale(BufferedImage source, int size) {
-        BufferedImage out = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+    /** Draws onto an opaque white canvas: JPEG has no transparency. */
+    private static BufferedImage draw(BufferedImage source, int width, int height) {
+        BufferedImage out = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = out.createGraphics();
         try {
             g.setColor(Color.WHITE);
-            g.fillRect(0, 0, size, size);
+            g.fillRect(0, 0, width, height);
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g.drawImage(source, 0, 0, size, size, null);
+            g.drawImage(source, 0, 0, width, height, null);
         } finally {
             g.dispose();
         }
         return out;
     }
 
-    private static byte[] encodeJpeg(BufferedImage image) throws IOException {
+    private static Jpeg encode(BufferedImage image) {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
         ImageWriteParam params = writer.getDefaultWriteParam();
         params.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
@@ -100,9 +113,11 @@ final class AvatarImages {
         try (ImageOutputStream out = ImageIO.createImageOutputStream(bytes)) {
             writer.setOutput(out);
             writer.write(null, new IIOImage(image, null, null), params);
+        } catch (IOException e) {
+            throw new IllegalStateException("JPEG encoding failed", e);
         } finally {
             writer.dispose();
         }
-        return bytes.toByteArray();
+        return new Jpeg(bytes.toByteArray(), image.getWidth(), image.getHeight());
     }
 }

@@ -1,6 +1,7 @@
 package com.senotify.pulse.identity;
 
 import com.senotify.pulse.common.ApiException;
+import com.senotify.pulse.common.Images;
 import com.senotify.pulse.common.Viewer;
 import com.senotify.pulse.identity.IdentityDtos.Me;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 class AvatarController {
 
     static final long MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    static final int AVATAR_SIZE = 400;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final JdbcClient jdbc;
@@ -47,7 +49,7 @@ class AvatarController {
         if (file.getSize() > MAX_UPLOAD_BYTES) {
             throw ApiException.badRequest("Image must be 5 MB or smaller");
         }
-        byte[] jpeg = AvatarImages.normalize(file.getBytes());
+        byte[] jpeg = Images.square(file.getBytes(), AVATAR_SIZE).bytes();
 
         jdbc.sql("DELETE FROM avatars WHERE user_id = :id").param("id", userId).update();
         jdbc.sql("INSERT INTO avatars (user_id, image) VALUES (:id, :image)")
