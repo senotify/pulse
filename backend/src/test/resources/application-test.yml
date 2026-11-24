@@ -12,3 +12,5 @@ pulse:
       enabled: false # tests drain the outbox explicitly
   timeline:
     fanout-threshold: 3
+  discovery:
+    trends-cache-ttl: PT0S
