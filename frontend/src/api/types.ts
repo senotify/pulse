@@ -36,6 +36,8 @@ export interface PostView {
   author: UserSummary;
   content: string | null;
   replyToId: number | null;
+  /** Author of the parent post, for "Replying to @user". */
+  replyTo: UserSummary | null;
   repostOf: PostView | null;
   likeCount: number;
   replyCount: number;

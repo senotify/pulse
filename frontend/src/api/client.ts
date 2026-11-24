@@ -107,6 +107,7 @@ export const api = {
   createPost: (content: string, replyToId?: number) => request<PostView>('POST', '/posts', { content, replyToId }),
   post: (id: number) => request<PostView>('GET', `/posts/${id}`),
   deletePost: (id: number) => request<void>('DELETE', `/posts/${id}`),
+  ancestors: (id: number) => request<PostView[]>('GET', `/posts/${id}/ancestors`),
   replies: (id: number, cursor?: string | null) =>
     request<CursorPage<PostView>>('GET', `/posts/${id}/replies${qs({ cursor })}`),
   setLike: (id: number, on: boolean) => request<PostView>(on ? 'PUT' : 'DELETE', `/posts/${id}/like`),
