@@ -1,0 +1,157 @@
+package com.senotify.pulse.post;
+
+import com.senotify.pulse.identity.UserSummary;
+import java.sql.Types;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class PostRepository {
+
+    /** The fields needed for authorization and bookkeeping. */
+    record PostCore(long id, long authorId, Long replyToId, Long repostOfId) {
+    }
+
+    /** A flat row for one post as seen by a viewer; reposts are hydrated in a second query. */
+    record PostRow(long id, long authorId, String username, String displayName, String content,
+                   Long replyToId, Long repostOfId, int likeCount, int replyCount, int repostCount,
+                   boolean likedByMe, boolean repostedByMe, OffsetDateTime createdAt) {
+
+        PostView toView(PostView original) {
+            return new PostView(id, new UserSummary(authorId, username, displayName), content, replyToId,
+                    original, likeCount, replyCount, repostCount, likedByMe, repostedByMe, createdAt);
+        }
+    }
+
+    enum Counter {
+        LIKES("like_count"), REPLIES("reply_count"), REPOSTS("repost_count");
+
+        final String column;
+
+        Counter(String column) {
+            this.column = column;
+        }
+    }
+
+    private static final String SELECT_VIEW = """
+            SELECT p.id, p.author_id, u.username, u.display_name, p.content, p.reply_to_id,
+                   p.repost_of_id, p.like_count, p.reply_count, p.repost_count, p.created_at,
+                   EXISTS (SELECT 1 FROM likes l
+                            WHERE l.post_id = p.id AND l.user_id = :viewer) AS liked_by_me,
+                   EXISTS (SELECT 1 FROM posts r
+                            WHERE r.repost_of_id = p.id AND r.author_id = :viewer) AS reposted_by_me
+            FROM posts p
+            JOIN users u ON u.id = p.author_id
+            WHERE NOT EXISTS (SELECT 1 FROM blocks b
+                               WHERE (b.blocker_id = p.author_id AND b.blocked_id = :viewer)
+                                  OR (b.blocker_id = :viewer AND b.blocked_id = p.author_id))
+            """;
+
+    private final JdbcClient jdbc;
+
+    PostRepository(JdbcClient jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    long insert(long authorId, String content, Long replyToId, Long repostOfId) {
+        var keys = new GeneratedKeyHolder();
+        jdbc.sql("""
+                INSERT INTO posts (author_id, content, reply_to_id, repost_of_id)
+                VALUES (:author, :content, :replyTo, :repostOf)
+                """)
+                .param("author", authorId)
+                .param("content", content, Types.VARCHAR)
+                .param("replyTo", replyToId, Types.BIGINT)
+                .param("repostOf", repostOfId, Types.BIGINT)
+                .update(keys, "id");
+        return keys.getKeyAs(Long.class);
+    }
+
+    Optional<PostCore> findCore(long id) {
+        return jdbc.sql("SELECT id, author_id, reply_to_id, repost_of_id FROM posts WHERE id = :id")
+                .param("id", id)
+                .query(PostCore.class)
+                .optional();
+    }
+
+    Optional<Long> findRepostId(long authorId, long originalId) {
+        return jdbc.sql("SELECT id FROM posts WHERE author_id = :author AND repost_of_id = :original")
+                .param("author", authorId)
+                .param("original", originalId)
+                .query(Long.class)
+                .optional();
+    }
+
+    void delete(long id) {
+        jdbc.sql("DELETE FROM posts WHERE id = :id").param("id", id).update();
+    }
+
+    void adjust(long postId, Counter counter, int delta) {
+        jdbc.sql("UPDATE posts SET " + counter.column + " = GREATEST(" + counter.column + " + :delta, 0)"
+                        + " WHERE id = :id")
+                .param("delta", delta)
+                .param("id", postId)
+                .update();
+    }
+
+    /** @return true when a like was recorded, false if it already existed */
+    boolean like(long userId, long postId) {
+        return jdbc.sql("INSERT INTO likes (user_id, post_id) VALUES (:user, :post) ON CONFLICT DO NOTHING")
+                .param("user", userId)
+                .param("post", postId)
+                .update() == 1;
+    }
+
+    boolean unlike(long userId, long postId) {
+        return jdbc.sql("DELETE FROM likes WHERE user_id = :user AND post_id = :post")
+                .param("user", userId)
+                .param("post", postId)
+                .update() == 1;
+    }
+
+    List<PostRow> findRows(Collection<Long> ids, long viewer) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.sql(SELECT_VIEW + " AND p.id IN (:ids)")
+                .param("viewer", viewer)
+                .param("ids", ids)
+                .query(PostRow.class)
+                .list();
+    }
+
+    /** An author's posts and reposts, newest first. */
+    List<PostRow> byAuthor(long authorId, long viewer, Long cursor, int fetchSize) {
+        return jdbc.sql(SELECT_VIEW + """
+                  AND p.author_id = :author AND (:cursor IS NULL OR p.id < :cursor)
+                ORDER BY p.id DESC
+                LIMIT :limit
+                """)
+                .param("viewer", viewer)
+                .param("author", authorId)
+                .param("cursor", cursor, Types.BIGINT)
+                .param("limit", fetchSize)
+                .query(PostRow.class)
+                .list();
+    }
+
+    /** Direct replies to a post, oldest first so a thread reads top to bottom. */
+    List<PostRow> replies(long postId, long viewer, Long cursor, int fetchSize) {
+        return jdbc.sql(SELECT_VIEW + """
+                  AND p.reply_to_id = :post AND (:cursor IS NULL OR p.id > :cursor)
+                ORDER BY p.id ASC
+                LIMIT :limit
+                """)
+                .param("viewer", viewer)
+                .param("post", postId)
+                .param("cursor", cursor, Types.BIGINT)
+                .param("limit", fetchSize)
+                .query(PostRow.class)
+                .list();
+    }
+}
