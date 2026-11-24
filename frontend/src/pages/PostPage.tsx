@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
@@ -5,45 +6,55 @@ import type { CursorPage, PostView } from '../api/types';
 import { Composer } from '../components/Composer';
 import { BackIcon } from '../components/Icons';
 import { InfiniteList } from '../components/InfiniteList';
-import { PostCard } from '../components/PostCard';
-import { Empty, ErrorNote, Spinner } from '../components/Status';
+import { PostCard, PostDetail } from '../components/PostCard';
+import { ErrorNote, Spinner } from '../components/Status';
 
 export function PostPage() {
   const { id } = useParams();
   const postId = Number(id);
   const navigate = useNavigate();
+  const replyBox = useRef<HTMLDivElement>(null);
 
   const post = useQuery({ queryKey: ['post', postId], queryFn: () => api.post(postId), enabled: Number.isFinite(postId) });
+  const target = post.data?.repostOf ?? post.data;
   const replies = useInfiniteQuery({
-    queryKey: ['replies', postId],
-    queryFn: ({ pageParam }) => api.replies(postId, pageParam),
+    queryKey: ['replies', target?.id],
+    queryFn: ({ pageParam }) => api.replies(target!.id, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
-    enabled: post.isSuccess,
+    enabled: target !== undefined,
   });
+
+  function focusReply() {
+    replyBox.current?.querySelector('textarea')?.focus();
+  }
 
   return (
     <>
-      <header className="page-header">
-        <button className="btn btn-small" onClick={() => navigate(-1)} aria-label="Back">
-          <BackIcon width={18} height={18} />
-        </button>
-        <h1>Post</h1>
-      </header>
+      <div className="column-header">
+        <div className="column-title">
+          <button className="icon-button" onClick={() => navigate(-1)} aria-label="Back">
+            <BackIcon />
+          </button>
+          <h1>Post</h1>
+        </div>
+      </div>
       {post.isPending ? (
         <Spinner />
       ) : post.error ? (
         <ErrorNote error={post.error} />
       ) : (
-        <div className="stack">
-          <PostCard post={post.data} surface="POST" />
-          <Composer replyToId={post.data.repostOf?.id ?? post.data.id} placeholder="Post your reply" />
+        <>
+          <PostDetail post={target!} onReply={focusReply} />
+          <div ref={replyBox}>
+            <Composer replyToId={target!.id} placeholder="Post your reply" />
+          </div>
           <InfiniteList<PostView, CursorPage<PostView>>
             query={replies}
-            empty={<Empty title="No replies yet">Start the conversation.</Empty>}
+            empty={null}
             render={(reply, index) => <PostCard key={reply.id} post={reply} surface="POST" position={index} />}
           />
-        </div>
+        </>
       )}
     </>
   );
