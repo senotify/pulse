@@ -34,7 +34,7 @@ class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/**", "/api/posts/**", "/api/discover/trends",
-                                "/api/search/**", "/api/avatars/**").permitAll()
+                                "/api/search/**", "/api/avatars/**", "/api/media/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**",
                                 "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
