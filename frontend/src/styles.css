@@ -400,7 +400,14 @@ button:disabled { cursor: default; opacity: 0.5; }
   transition: background 0.15s;
 }
 .post:hover { background: var(--hover); }
-.post-gutter { display: flex; flex-direction: column; align-items: flex-end; width: 48px; flex: none; }
+.post-gutter { display: flex; flex-direction: column; align-items: center; width: 48px; flex: none; }
+/* Conversation threads: earlier posts connect to the next one with a line under the avatar. */
+.post.thread-parent { border-bottom: none; padding-bottom: 0; }
+.post.thread-parent .post-body { padding-bottom: 12px; }
+.thread-line { flex: 1; width: 2px; min-height: 12px; margin-top: 4px; background: var(--border-strong); }
+.detail-avatar { position: relative; display: block; }
+.thread-line-top { position: absolute; left: 23px; top: -12px; width: 2px; height: 12px; background: var(--border-strong); }
+.detail-replying { margin: -4px 0 12px; }
 .post-body { flex: 1; min-width: 0; }
 .post-context {
   display: flex;

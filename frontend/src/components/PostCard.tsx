@@ -109,7 +109,23 @@ function PostActions({ a, onReply, showCounts = true }: { a: Actions; onReply: (
   );
 }
 
-/** A timeline row. */
+/** "Replying to @user", linking to the parent author's profile. */
+function ReplyingTo({ post, className = '' }: { post: PostView; className?: string }) {
+  if (!post.replyToId || !post.replyTo) return null;
+  return (
+    <div className={`post-replying ${className}`}>
+      Replying to{' '}
+      <Link to={`/u/${post.replyTo.username}`} className="link" onClick={(e) => e.stopPropagation()}>
+        @{post.replyTo.username}
+      </Link>
+    </div>
+  );
+}
+
+/**
+ * A timeline row. With {@code threadParent} it is drawn as an earlier post in a conversation:
+ * no divider, and a line from its avatar down to the next post.
+ */
 export function PostCard({
   post,
   surface,
@@ -118,7 +134,8 @@ export function PostCard({
   reason,
   features,
   score,
-}: { post: PostView; reason?: string; features?: Features; score?: number } & Tracking) {
+  threadParent = false,
+}: { post: PostView; reason?: string; features?: Features; score?: number; threadParent?: boolean } & Tracking) {
   const { me } = useAuth();
   const navigate = useNavigate();
   const ref = useRef<HTMLElement>(null);
@@ -137,11 +154,12 @@ export function PostCard({
   const stop = (e: MouseEvent) => e.stopPropagation();
 
   return (
-    <article ref={ref} className="post" onClick={open}>
+    <article ref={ref} className={`post ${threadParent ? 'thread-parent' : ''}`} onClick={open}>
       <div className="post-gutter">
         <Link to={`/u/${shown.author.username}`} onClick={stop}>
           <Avatar user={shown.author} size={48} />
         </Link>
+        {threadParent && <div className="thread-line" />}
       </div>
       <div className="post-body">
         {post.repostOf && (
@@ -162,14 +180,7 @@ export function PostCard({
             {timeAgo(shown.createdAt)}
           </time>
         </div>
-        {shown.replyToId && (
-          <div className="post-replying small">
-            Replying to{' '}
-            <Link to={`/p/${shown.replyToId}`} className="link" onClick={stop}>
-              a post
-            </Link>
-          </div>
-        )}
+        {!threadParent && <ReplyingTo post={shown} />}
         <div className="post-content">
           <RichText text={shown.content ?? ''} />
         </div>
@@ -185,8 +196,11 @@ export function PostCard({
   );
 }
 
-/** The focused post at the top of a thread: large text, full timestamp and a stats row. */
-export function PostDetail({ post, onReply }: { post: PostView; onReply: () => void }) {
+/**
+ * The focused post in a thread: large text, full timestamp and a stats row. With {@code hasParent}
+ * the conversation line from the posts above continues into its avatar.
+ */
+export function PostDetail({ post, onReply, hasParent = false }: { post: PostView; onReply: () => void; hasParent?: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const a = usePostActions(post);
   const { shown } = a;
@@ -197,7 +211,8 @@ export function PostDetail({ post, onReply }: { post: PostView; onReply: () => v
   return (
     <article ref={ref} className="post-detail">
       <div className="head">
-        <Link to={`/u/${shown.author.username}`}>
+        <Link to={`/u/${shown.author.username}`} className="detail-avatar">
+          {hasParent && <span className="thread-line-top" />}
           <Avatar user={shown.author} size={48} />
         </Link>
         <div className="grow">
@@ -205,11 +220,7 @@ export function PostDetail({ post, onReply }: { post: PostView; onReply: () => v
           <div className="muted">@{shown.author.username}</div>
         </div>
       </div>
-      {shown.replyToId && (
-        <div className="post-replying" style={{ marginTop: -6, marginBottom: 10 }}>
-          Replying to <Link to={`/p/${shown.replyToId}`} className="link">a post</Link>
-        </div>
-      )}
+      <ReplyingTo post={shown} className="detail-replying" />
       <div className="post-content">
         <RichText text={shown.content ?? ''} />
       </div>
