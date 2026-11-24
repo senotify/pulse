@@ -7,6 +7,11 @@ on:
     branches-ignore: [master]
   pull_request:
   workflow_call:
+    inputs:
+      build-images:
+        description: Also prove the images build (deploy.yml builds and pushes them itself).
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -49,7 +54,8 @@ jobs:
       - run: npm run build
 
   images:
-    if: github.event_name != 'workflow_call'
+    # Branch pushes and PRs have no inputs, so this runs there; deploy.yml passes false.
+    if: inputs.build-images != false
     needs: [backend, frontend]
     runs-on: ubuntu-latest
     strategy:
