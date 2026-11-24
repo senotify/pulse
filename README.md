@@ -41,13 +41,43 @@ Gateway ───── Identity Service ─── PostgreSQL shard
 
 ## Recommendation design
 
-The `For You` feed follows the public pipeline described in X's `home-mixer` documentation:
+The `For You` feed (`GET /api/timeline/for-you`) follows the stages of X's public `home-mixer` pipeline. Each stage is a separate class in `backend/.../recommendation/`:
 
-1. **Candidate generation**: followed authors, second-degree graph authors, and trending posts.
-2. **Feature hydration**: affinity, author reputation, recency, engagement velocity, content affinity, and prior-seen state.
-3. **Ranking**: a transparent weighted ranker initially. Its `Ranker` interface supports replacing it with a Java ONNX Runtime model later.
-4. **Safety and quality filters**: self, blocked/muted authors, duplicate candidates, and already-seen posts.
-5. **Mixing and diversity**: cap consecutive posts from an author, balance in-network and out-of-network posts, and cursor pagination.
+```text
+CandidateSource ×4 ──► merge by post ──► filter ──► FeatureHydrator ──► Ranker ──► FeedMixer ──► snapshot ──► page
+ (≤200 each)            (union of        self,       7 features,        weighted   diversity +   Redis,
+                         sources)        blocked,    O(1) queries       linear     network       30 min
+                                         muted, seen                               balance
+```
+
+1. **Candidate sources**, each returning only original top-level posts:
+
+   | Source | Retrieves | Reason shown |
+   |--------|-----------|--------------|
+   | `IN_NETWORK` | Posts from accounts you follow (last 3 days) | "From an account you follow" |
+   | `ENGAGED_BY_FOLLOWING` | Posts liked or reposted by accounts you follow, from authors you don't follow | "Liked or reposted by @friend and 2 more you follow" |
+   | `FOLLOWED_BY_FOLLOWING` | Posts from accounts your follows follow (second-degree graph) | "Followed by accounts you follow" |
+   | `TRENDING` | The most-engaged posts of the last 24 hours; the cold-start source for new users | "Popular right now" |
+
+   A post retrieved by several sources is merged and scored once. Its highest-priority source picks the reason.
+2. **Filters**, applied before hydration so feature queries only cover posts that can be shown: the viewer's own posts, authors blocked in either direction, muted authors, and posts with an `IMPRESSION` event in the last 7 days.
+3. **Feature hydration**, using four batched queries however many candidates there are. Every feature is normalized to [0, 1]:
+
+   | Feature | Definition |
+   |---------|------------|
+   | `inNetwork` | 1 if you follow the author |
+   | `authorAffinity` | Your replies (×2), reposts (×1.5), likes (×1) and clicks (×0.5) on the author in 30 days; a/(a+3) |
+   | `socialProof` | Number of accounts you follow that engaged; 1 − 1/(1+n) |
+   | `engagementVelocity` | (likes + 2·reposts + 1.5·replies) / (age_h + 2)^1.5; v/(v+1) |
+   | `recency` | Exponential decay with a 6-hour half-life |
+   | `authorReputation` | log(1+followers) / log(1+10 000), capped at 1 |
+   | `contentAffinity` | Term overlap with posts you liked; a stand-in for embeddings until there is data |
+
+4. **Ranking**: `WeightedRanker` computes score = Σ weight × feature, with weights in `application.yml`. It implements the `Ranker` interface, which is the seam for an ONNX Runtime model. Every page returns `modelVersion`, and clients echo it back in interaction events.
+5. **Mixing**: greedy selection. Each post already picked from an author halves that author's next score, and out-of-network posts are capped at 50% while in-network candidates remain.
+6. **Stable paging**: page 1 ranks once and stores the top 200 in Redis for 30 minutes. The cursor `<token>.<offset>` reads from that snapshot, so posts never repeat or go missing as scores drift. An expired snapshot, or Redis being down, means re-ranking rather than an error.
+
+Add `explain=true` to get the feature vector with each item.
 
 Real ML training is intentionally deferred until Pulse collects interaction events. The event schema, feature interface, model version fields, and ONNX ranker seam are included now. Building a model without representative behavioral data would only create synthetic accuracy claims.
 
@@ -73,9 +103,9 @@ pulse/
 |------|-------|-------|
 | 1 | Toolchain | Done (builds run in a `gradle:8.14-jdk21` container; no local JDK needed) |
 | 2 | Identity, social graph, posts, outbox, Flyway schema | **Done**: tests pass on H2, smoke-tested on PostgreSQL 17 |
-| 3 | Timeline module: following feed with Redis fan-out | **Done**: 14 tests pass, smoke-tested with real Redis (including a Redis outage) |
-| 4 | Recommendation pipeline: For You feed with weighted ranker | Next |
-| 5 | React frontend | Planned |
+| 3 | Timeline module: following feed with Redis fan-out | **Done**: smoke-tested with real Redis (including a Redis outage) |
+| 4 | Recommendation pipeline: For You feed, interaction log | **Done**: 29 tests pass in total, smoke-tested on PostgreSQL + Redis |
+| 5 | React frontend | Next |
 | 6 | Production Compose, CI workflow, Caddy route | Planned |
 
 ## Running locally
@@ -135,6 +165,8 @@ Auth is a stateless HS256 bearer JWT returned by register/login. GETs work anony
 | GET | `/api/posts/{id}/replies` | Oldest first |
 | PUT / DELETE | `/api/posts/{id}/like` · `/repost` | Idempotent; acting on a repost targets its original |
 | GET | `/api/timeline/following` | Requires auth; the viewer's own posts plus those of followed accounts, newest first, replies excluded |
+| GET | `/api/timeline/for-you` | Requires auth; ranked recommendations with `source`, `reason`, `score` and `modelVersion`; `?explain=true` adds features |
+| POST | `/api/interactions` | Requires auth; up to 100 `IMPRESSION`, `CLICK` or `DWELL` events with optional `surface`, `position`, `dwellMs` and `modelVersion`; returns 202 |
 
 Blocks hide content in both directions and prevent follows, likes, replies and reposts. Mutes hide an author from the Following timeline. Every state change writes a domain event to `outbox_events` in the same transaction.
 
