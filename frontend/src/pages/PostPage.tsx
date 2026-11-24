@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
@@ -9,14 +9,23 @@ import { InfiniteList } from '../components/InfiniteList';
 import { PostCard, PostDetail } from '../components/PostCard';
 import { ErrorNote, Spinner } from '../components/Status';
 
+/** A conversation: the posts above (joined by a line), the focused post, a reply box, then replies. */
 export function PostPage() {
   const { id } = useParams();
   const postId = Number(id);
   const navigate = useNavigate();
-  const replyBox = useRef<HTMLDivElement>(null);
+  const focused = useRef<HTMLDivElement>(null);
 
   const post = useQuery({ queryKey: ['post', postId], queryFn: () => api.post(postId), enabled: Number.isFinite(postId) });
   const target = post.data?.repostOf ?? post.data;
+
+  const ancestors = useQuery({
+    queryKey: ['ancestors', target?.id],
+    queryFn: () => api.ancestors(target!.id),
+    enabled: target?.replyToId != null,
+  });
+  const parents = target?.replyToId != null ? (ancestors.data ?? []) : [];
+
   const replies = useInfiniteQuery({
     queryKey: ['replies', target?.id],
     queryFn: ({ pageParam }) => api.replies(target!.id, pageParam),
@@ -25,8 +34,13 @@ export function PostPage() {
     enabled: target !== undefined,
   });
 
+  // With context above, keep the focused post in view rather than the top of the thread.
+  useEffect(() => {
+    if (parents.length > 0) focused.current?.scrollIntoView({ block: 'start' });
+  }, [parents.length, postId]);
+
   function focusReply() {
-    replyBox.current?.querySelector('textarea')?.focus();
+    focused.current?.querySelector('textarea')?.focus();
   }
 
   return (
@@ -45,9 +59,16 @@ export function PostPage() {
         <ErrorNote error={post.error} />
       ) : (
         <>
-          <PostDetail post={target!} onReply={focusReply} />
-          <div ref={replyBox}>
-            <Composer replyToId={target!.id} placeholder="Post your reply" />
+          {target!.replyToId != null && ancestors.isPending && <Spinner />}
+          {parents.map((parent) => (
+            <PostCard key={parent.id} post={parent} surface="POST" threadParent />
+          ))}
+          <div ref={focused} style={{ scrollMarginTop: 54 }}>
+            <PostDetail post={target!} onReply={focusReply} hasParent={parents.length > 0} />
+            <Composer
+              replyToId={target!.id}
+              placeholder={`Reply to @${target!.author.username}`}
+            />
           </div>
           <InfiniteList<PostView, CursorPage<PostView>>
             query={replies}
