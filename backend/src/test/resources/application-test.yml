@@ -7,3 +7,8 @@ spring:
 pulse:
   jwt:
     secret: test-secret-test-secret-test-secret-0123
+  outbox:
+    relay:
+      enabled: false # tests drain the outbox explicitly
+  timeline:
+    fanout-threshold: 3
