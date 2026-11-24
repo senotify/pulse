@@ -39,6 +39,27 @@ pulse:
     follow-backfill: 50
     # Timelines of users who stop reading expire and are rebuilt from PostgreSQL on return.
     idle-ttl: P7D
+  recommendation:
+    candidate-window: P3D
+    trending-window: P1D
+    seen-window: P7D
+    affinity-window: P30D
+    source-limit: 200
+    snapshot-size: 200
+    snapshot-ttl: PT30M
+    recency-half-life-hours: 6
+    # Each extra post from the same author in a page multiplies its score by this.
+    author-penalty: 0.5
+    # Cap on out-of-network posts while in-network candidates remain.
+    max-out-of-network-share: 0.5
+    weights:
+      in-network: 1.0
+      author-affinity: 2.0
+      social-proof: 1.2
+      engagement-velocity: 1.5
+      recency: 1.0
+      author-reputation: 0.3
+      content-affinity: 0.8
 
 management:
   endpoints:
