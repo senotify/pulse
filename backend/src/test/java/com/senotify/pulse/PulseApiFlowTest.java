@@ -162,6 +162,36 @@ class PulseApiFlowTest {
                 .andExpect(jsonPath("$.nextCursor").doesNotExist());
     }
 
+    @Test
+    void threadsExposeParentAuthorAndAncestors() throws Exception {
+        String erin = register("erin");
+        String frank = register("frank");
+        long root = id(mvc.perform(auth(post("/api/posts"), erin).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"root\"}")).andReturn().getResponse().getContentAsString());
+        long middle = id(mvc.perform(auth(post("/api/posts"), frank).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"middle\",\"replyToId\":" + root + "}"))
+                .andExpect(jsonPath("$.replyTo.username").value("erin"))
+                .andReturn().getResponse().getContentAsString());
+        long leaf = id(mvc.perform(auth(post("/api/posts"), erin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"leaf\",\"replyToId\":" + middle + "}"))
+                .andExpect(jsonPath("$.replyTo.username").value("frank"))
+                .andReturn().getResponse().getContentAsString());
+
+        mvc.perform(get("/api/posts/" + root)).andExpect(jsonPath("$.replyTo").doesNotExist());
+        mvc.perform(get("/api/posts/" + leaf + "/ancestors"))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].content").value("root"))
+                .andExpect(jsonPath("$[1].content").value("middle"));
+        mvc.perform(get("/api/posts/" + root + "/ancestors")).andExpect(jsonPath("$", hasSize(0)));
+
+        // A blocked participant drops out of the chain for the blocker.
+        mvc.perform(auth(put("/api/users/frank/block"), erin)).andExpect(status().isNoContent());
+        mvc.perform(auth(get("/api/posts/" + leaf + "/ancestors"), erin))
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].content").value("root"));
+        mvc.perform(get("/api/posts/999999/ancestors")).andExpect(status().isNotFound());
+    }
+
     private String register(String username) throws Exception {
         String body = mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
                         {"username":"%s","email":"%s@example.com","displayName":"%s display","password":"password123"}
