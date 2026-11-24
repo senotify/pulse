@@ -1,0 +1,84 @@
+# Production stack on the shared 2 vCPU / 3.6 GB VPS. Images are built by CI and pulled here;
+# nothing is compiled on the server. Memory limits keep Pulse from starving the other sites.
+#
+# Lives at ~/pulse on the server next to a .env (never in git) holding:
+#   POSTGRES_PASSWORD=...   # read once when the volume is first initialised
+#   PULSE_JWT_SECRET=...    # at least 32 bytes
+#
+# Only pulse-web joins proxy-network (Caddy's network); the API, database and cache are internal.
+name: pulse
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: pulse-postgres
+    environment:
+      POSTGRES_DB: pulse
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD not set, see .env}
+    command: ["postgres", "-c", "shared_buffers=48MB", "-c", "max_connections=30"]
+    volumes:
+      - pulse_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse -d pulse"]
+      interval: 10s
+      retries: 10
+    mem_limit: 256m
+    networks: [pulse]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulse-redis
+    # A rebuildable cache: no persistence, evict whole keys under pressure.
+    command: ["redis-server", "--maxmemory", "48mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 10
+    mem_limit: 80m
+    networks: [pulse]
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/senotify/pulse-api:${TAG:-latest}
+    container_name: pulse-api
+    env_file: .env
+    environment:
+      PULSE_DB_URL: jdbc:postgresql://pulse-postgres:5432/pulse
+      PULSE_DB_USER: pulse
+      PULSE_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      PULSE_DB_POOL: "5"
+      PULSE_REDIS_HOST: pulse-redis
+      # ~330 MB heap inside a 512 MB limit; SerialGC has the smallest footprint for one small app.
+      JAVA_OPTS: -XX:MaxRAMPercentage=65 -XX:+UseSerialGC -Xss512k
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness | grep -q UP"]
+      interval: 15s
+      start_period: 60s
+      retries: 5
+    mem_limit: 512m
+    networks: [pulse]
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/senotify/pulse-web:${TAG:-latest}
+    container_name: pulse-web
+    depends_on:
+      - api
+    mem_limit: 48m
+    networks: [pulse, proxy-network]
+    restart: unless-stopped
+
+volumes:
+  pulse_pg:
+
+networks:
+  pulse: {}
+  proxy-network:
+    external: true
