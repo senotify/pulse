@@ -1,7 +1,28 @@
+import { useState } from 'react';
 import { avatarHue, initials } from '../lib/format';
 import type { UserSummary } from '../api/types';
 
+/** The profile photo, or coloured initials when there is none (or it fails to load). */
 export function Avatar({ user, size = 40 }: { user: UserSummary; size?: number }) {
+  const [broken, setBroken] = useState<string | null>(null);
+  const src = user.avatarKey ? `/api/avatars/${user.id}?v=${user.avatarKey}` : null;
+
+  if (src && broken !== src) {
+    return (
+      <img
+        className="avatar"
+        src={src}
+        width={size}
+        height={size}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={() => setBroken(src)}
+        style={{ width: size, height: size, objectFit: 'cover' }}
+      />
+    );
+  }
+
   const hue = avatarHue(user.id);
   return (
     <span
