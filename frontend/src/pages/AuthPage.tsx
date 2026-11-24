@@ -21,7 +21,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     if (!register) return null;
     if (!USERNAME.test(form.username)) return 'Username must be 3-20 letters, digits or underscores.';
     if (form.password.length < 8) return 'Password must be at least 8 characters.';
-    if (!form.displayName.trim()) return 'Display name is required.';
+    if (!form.displayName.trim()) return 'Name is required.';
     return null;
   }
 
@@ -50,71 +50,58 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
 
   return (
-    <div className="auth-page">
-      <form className="card auth-card stack" onSubmit={submit}>
-        <div className="auth-hero">
-          <PulseMark className="brand-mark" /> Pulse
-        </div>
-        <div>
-          <h1>{register ? 'Create your account' : 'Welcome back'}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            {register ? 'A small network with a feed that explains itself.' : 'Sign in to see your feed.'}
-          </p>
-        </div>
-        {register ? (
-          <>
-            <label className="label">
-              Username
-              <input className="input" value={form.username} onChange={set('username')} autoComplete="username" required />
-            </label>
-            <label className="label">
-              Display name
-              <input className="input" value={form.displayName} onChange={set('displayName')} maxLength={50} required />
-            </label>
-            <label className="label">
-              Email
-              <input className="input" type="email" value={form.email} onChange={set('email')} autoComplete="email" required />
-            </label>
-          </>
-        ) : (
-          <label className="label">
-            Username or email
-            <input className="input" value={form.login} onChange={set('login')} autoComplete="username" required />
-          </label>
-        )}
-        <label className="label">
-          Password
+    <div className="auth">
+      <div className="auth-art" aria-hidden="true">
+        <svg viewBox="0 0 32 32">
+          <path d="M3 17h7l3.5-9 5 17 3.5-8h7" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <main className="auth-main">
+        <form className="auth-form" onSubmit={submit}>
+          <PulseMark className="mark" />
+          <h1>{register ? 'Join Pulse today.' : 'Happening now'}</h1>
+          <p className="lead">{register ? 'Create your account' : 'Sign in to Pulse'}</p>
+          {register ? (
+            <>
+              <input className="input" placeholder="Name" aria-label="Name" value={form.displayName} onChange={set('displayName')} maxLength={50} required />
+              <input className="input" placeholder="Username" aria-label="Username" value={form.username} onChange={set('username')} autoComplete="username" required />
+              <input className="input" type="email" placeholder="Email" aria-label="Email" value={form.email} onChange={set('email')} autoComplete="email" required />
+            </>
+          ) : (
+            <input className="input" placeholder="Username or email" aria-label="Username or email" value={form.login} onChange={set('login')} autoComplete="username" required />
+          )}
           <input
             className="input"
             type="password"
+            placeholder="Password"
+            aria-label="Password"
             value={form.password}
             onChange={set('password')}
             autoComplete={register ? 'new-password' : 'current-password'}
-            minLength={register ? 8 : undefined}
             maxLength={72}
             required
           />
-        </label>
-        {error && (
-          <div className="error" role="alert">
-            {error}
-          </div>
-        )}
-        <button className="btn btn-primary btn-block" disabled={busy}>
-          {busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}
-        </button>
-        <p className="muted small" style={{ textAlign: 'center', margin: 0 }}>
-          {register ? (
-            <>
-              Already have an account? <Link to="/login" className="bold">Sign in</Link>
-            </>
-          ) : (
-            <>
-              New to Pulse? <Link to="/register" className="bold">Create an account</Link>
-            </>
+          {error && (
+            <div className="error" role="alert">
+              {error}
+            </div>
           )}
-        </p>
-      </form>
+          <button className="btn btn-primary btn-large btn-block" disabled={busy}>
+            {busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}
+          </button>
+          <p className="muted" style={{ margin: 0 }}>
+            {register ? (
+              <>
+                Already have an account? <Link to="/login" className="link">Sign in</Link>
+              </>
+            ) : (
+              <>
+                Don't have an account? <Link to="/register" className="link">Sign up</Link>
+              </>
+            )}
+          </p>
+        </form>
+      </main>
     </div>
   );
 }
