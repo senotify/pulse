@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import { compactCount, timeAgo } from '../lib/format';
 import { Avatar } from './Avatar';
 import { HeartIcon, ReplyIcon, RepostIcon, SparkIcon, TrashIcon } from './Icons';
+import { MediaGrid } from './MediaGrid';
 import { RichText } from './RichText';
 import { SignalBars } from './SignalBars';
 
@@ -181,9 +182,12 @@ export function PostCard({
           </time>
         </div>
         {!threadParent && <ReplyingTo post={shown} />}
-        <div className="post-content">
-          <RichText text={shown.content ?? ''} />
-        </div>
+        {shown.content && (
+          <div className="post-content">
+            <RichText text={shown.content} />
+          </div>
+        )}
+        <MediaGrid media={shown.media ?? []} />
         {reason && (
           <div className="reason">
             <SparkIcon /> {reason}
@@ -221,9 +225,12 @@ export function PostDetail({ post, onReply, hasParent = false }: { post: PostVie
         </div>
       </div>
       <ReplyingTo post={shown} className="detail-replying" />
-      <div className="post-content">
-        <RichText text={shown.content ?? ''} />
-      </div>
+      {shown.content && (
+        <div className="post-content">
+          <RichText text={shown.content} />
+        </div>
+      )}
+      <MediaGrid media={shown.media ?? []} />
       <div className="timestamp">
         {created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} ·{' '}
         {created.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

@@ -117,6 +117,14 @@ export const CameraIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const ImageIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <circle cx="8.5" cy="9.5" r="1.7" />
+    <path d="m21 16-5-5-9 9" />
+  </Icon>
+);
+
 export function PulseMark({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 32 32" aria-hidden="true">
