@@ -7,6 +7,11 @@ spring:
     password: ${PULSE_DB_PASSWORD:pulse}
     hikari:
       maximum-pool-size: ${PULSE_DB_POOL:10}
+  data:
+    redis:
+      host: ${PULSE_REDIS_HOST:localhost}
+      port: ${PULSE_REDIS_PORT:6379}
+      timeout: 2s
   flyway:
     enabled: true
   mvc:
@@ -21,6 +26,19 @@ pulse:
     # Must be at least 32 bytes. Override with PULSE_JWT_SECRET outside local development.
     secret: ${PULSE_JWT_SECRET:local-dev-only-secret-change-me-0123456789}
     ttl: ${PULSE_JWT_TTL:PT24H}
+  outbox:
+    relay:
+      enabled: ${PULSE_OUTBOX_RELAY_ENABLED:true}
+      interval-ms: 500
+  timeline:
+    # Entries kept per home timeline in Redis.
+    capacity: 800
+    # Authors with at least this many followers are merged at read time instead of fanned out.
+    fanout-threshold: 5000
+    # Recent posts copied into a timeline when the user follows someone.
+    follow-backfill: 50
+    # Timelines of users who stop reading expire and are rebuilt from PostgreSQL on return.
+    idle-ttl: P7D
 
 management:
   endpoints:

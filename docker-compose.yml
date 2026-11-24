@@ -1,7 +1,18 @@
-# Local development: PostgreSQL only for now. Redis joins with the timeline module.
-#   docker compose up -d            # database
-#   docker compose --profile api up # database + API on :8080
+# Local development.
+#   docker compose up -d            # PostgreSQL + Redis
+#   docker compose --profile api up # ... + API on :8080 (PULSE_API_PORT to change)
 services:
+  redis:
+    image: redis:7-alpine
+    # Timelines are a rebuildable cache, so evicting whole keys under memory pressure is safe.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -24,10 +35,13 @@ services:
       PULSE_DB_URL: jdbc:postgresql://postgres:5432/pulse
       PULSE_DB_USER: pulse
       PULSE_DB_PASSWORD: pulse
+      PULSE_REDIS_HOST: redis
     ports:
       - "${PULSE_API_PORT:-8080}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:
