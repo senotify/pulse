@@ -116,6 +116,8 @@ export const api = {
 
   createPost: (content: string, replyToId?: number, mediaIds: number[] = []) =>
     request<PostView>('POST', '/posts', { content, replyToId, mediaIds }),
+  userLikes: (username: string, cursor?: string | null) =>
+    request<CursorPage<PostView>>('GET', `/users/${encodeURIComponent(username)}/likes${qs({ cursor })}`),
   uploadMedia: (image: Blob) => {
     const form = new FormData();
     form.append('file', image, 'photo.jpg');

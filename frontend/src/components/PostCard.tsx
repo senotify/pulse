@@ -51,7 +51,12 @@ function usePostActions(post: PostView) {
     hidden,
     busy,
     canDelete: shown.author.id === me?.id,
-    toggleLike: (e: MouseEvent) => act(e, () => api.setLike(shown.id, !shown.likedByMe)),
+    toggleLike: (e: MouseEvent) =>
+      act(e, async () => {
+        const updated = await api.setLike(shown.id, !shown.likedByMe);
+        queryClient.invalidateQueries({ queryKey: ['user-likes', me?.username] });
+        return updated;
+      }),
     toggleRepost: (e: MouseEvent) =>
       act(e, async () => {
         const updated = await api.setRepost(shown.id, !shown.repostedByMe);

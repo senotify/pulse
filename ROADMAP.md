@@ -20,7 +20,7 @@ tested commits. Tick the box (`- [x]`) in the same commit that finishes the item
 
 ## Product
 
-- [ ] **Likes tab on profiles**: `GET /api/users/{username}/likes` (keyset paginated by like time),
+- [x] **Likes tab on profiles**: `GET /api/users/{username}/likes` (keyset paginated by like time), (done 2026-11-25)
       plus a "Likes" tab in the profile UI next to Media. Tests for ordering, blocks and pagination.
 - [ ] **Notifications, backend**: a `notifications` table filled by an outbox handler (likes,
       reposts, replies, follows, mentions), `GET /api/notifications`, `POST /api/notifications/read`

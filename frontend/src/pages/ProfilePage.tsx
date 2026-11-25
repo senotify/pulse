@@ -14,12 +14,13 @@ import { avatarHue, compactCount } from '../lib/format';
 import { squareJpeg } from '../lib/image';
 
 /** The three tabs, plus the follower lists that open from the counts. */
-type Tab = ProfileFilter | 'followers' | 'following';
+type Tab = ProfileFilter | 'likes' | 'followers' | 'following';
 
-const TABS: { id: ProfileFilter; label: string }[] = [
+const TABS: { id: Tab; label: string }[] = [
   { id: 'posts', label: 'Posts' },
   { id: 'replies', label: 'Posts & replies' },
   { id: 'media', label: 'Media' },
+  { id: 'likes', label: 'Likes' },
 ];
 
 export function ProfilePage() {
@@ -66,6 +67,8 @@ export function ProfilePage() {
             </>
           ) : tab === 'media' ? (
             <UserMedia username={profile.data.username} />
+          ) : tab === 'likes' ? (
+            <UserLikes username={profile.data.username} />
           ) : (
             <UserPosts username={profile.data.username} filter={tab} />
           )}
@@ -316,6 +319,23 @@ function UserPosts({ username, filter }: { username: string; filter: 'posts' | '
     <InfiniteList<PostView, CursorPage<PostView>>
       query={query}
       empty={<Empty title={`@${username} hasn't posted`}>When they do, their posts will show up here.</Empty>}
+      render={(post, index) => <PostCard key={post.id} post={post} surface="PROFILE" position={index} />}
+    />
+  );
+}
+
+/** The Likes tab: posts the user liked, most recently liked first. */
+function UserLikes({ username }: { username: string }) {
+  const query = useInfiniteQuery({
+    queryKey: ['user-likes', username],
+    queryFn: ({ pageParam }) => api.userLikes(username, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  });
+  return (
+    <InfiniteList<PostView, CursorPage<PostView>>
+      query={query}
+      empty={<Empty title={`@${username} hasn't liked anything`}>Posts they like will show up here.</Empty>}
       render={(post, index) => <PostCard key={post.id} post={post} surface="PROFILE" position={index} />}
     />
   );
