@@ -97,4 +97,12 @@ class PostController {
         }
         return posts.byAuthor(username, Viewer.idOrAnonymous(jwt), tab, PageParams.of(cursor, limit));
     }
+
+    /** The Likes profile tab: posts the user liked, most recently liked first. */
+    @GetMapping("/users/{username}/likes")
+    CursorPage<PostView> likes(@PathVariable String username, @AuthenticationPrincipal Jwt jwt,
+                               @RequestParam(required = false) String cursor,
+                               @RequestParam(required = false) Integer limit) {
+        return posts.likedBy(username, Viewer.idOrAnonymous(jwt), cursor, limit);
+    }
 }

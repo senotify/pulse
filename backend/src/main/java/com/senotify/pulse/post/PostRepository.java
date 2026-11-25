@@ -171,6 +171,62 @@ public class PostRepository {
                 .list();
     }
 
+    /** One entry of a user's likes list: the post and when it was liked. */
+    record LikeRef(long postId, java.time.Instant likedAt) {
+    }
+
+    /**
+     * The posts a user liked, most recently liked first. Keyset on (like time, post id) so likes
+     * made in the same instant never repeat or vanish across pages. Posts hidden from the viewer
+     * by a block are filtered here so pages stay full.
+     */
+    List<LikeRef> likedBy(long userId, long viewer, LikeCursor cursor, int fetchSize) {
+        return jdbc.sql("""
+                SELECT l.post_id, l.created_at AS liked_at
+                FROM likes l
+                JOIN posts p ON p.id = l.post_id
+                WHERE l.user_id = :user
+                  AND (:hasCursor = FALSE OR (l.created_at, l.post_id) < (:at, :postId))
+                  AND NOT EXISTS (SELECT 1 FROM blocks b
+                                   WHERE (b.blocker_id = p.author_id AND b.blocked_id = :viewer)
+                                      OR (b.blocker_id = :viewer AND b.blocked_id = p.author_id))
+                ORDER BY l.created_at DESC, l.post_id DESC
+                LIMIT :limit
+                """)
+                .param("user", userId)
+                .param("viewer", viewer)
+                .param("hasCursor", cursor != null)
+                .param("at", cursor == null ? OffsetDateTime.now() : cursor.at().atOffset(java.time.ZoneOffset.UTC))
+                .param("postId", cursor == null ? 0L : cursor.postId())
+                .param("limit", fetchSize)
+                .query((rs, n) -> new LikeRef(rs.getLong("post_id"),
+                        rs.getObject("liked_at", OffsetDateTime.class).toInstant()))
+                .list();
+    }
+
+    /** Position in a likes list; encoded for clients as {@code <epoch micros>_<post id>}. */
+    record LikeCursor(java.time.Instant at, long postId) {
+
+        static LikeCursor parse(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return null;
+            }
+            try {
+                int sep = raw.indexOf('_');
+                long micros = Long.parseLong(raw.substring(0, sep));
+                long postId = Long.parseLong(raw.substring(sep + 1));
+                return new LikeCursor(java.time.Instant.EPOCH.plus(micros, java.time.temporal.ChronoUnit.MICROS), postId);
+            } catch (RuntimeException e) {
+                throw com.senotify.pulse.common.ApiException.badRequest("Invalid cursor");
+            }
+        }
+
+        static String encode(LikeRef ref) {
+            long micros = ref.likedAt().getEpochSecond() * 1_000_000L + ref.likedAt().getNano() / 1_000;
+            return micros + "_" + ref.postId();
+        }
+    }
+
     /**
      * The chain of posts a reply answers, root first, excluding the post itself. Depth is capped
      * so a pathological chain cannot make one request walk the whole table.

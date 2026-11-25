@@ -149,6 +149,18 @@ public class PostService {
         return page(rows, viewer, page);
     }
 
+    /** The posts a user liked, most recently liked first. Likes are public, like follows. */
+    @Transactional(readOnly = true)
+    CursorPage<PostView> likedBy(String username, long viewer, String cursor, Integer limit) {
+        long user = users.findIdByUsername(username).orElseThrow(() -> ApiException.notFound("User not found"));
+        int size = PageParams.of(null, limit).limit();
+        List<PostRepository.LikeRef> refs = posts.likedBy(user, viewer, PostRepository.LikeCursor.parse(cursor), size + 1);
+        boolean more = refs.size() > size;
+        List<PostRepository.LikeRef> pageRefs = more ? refs.subList(0, size) : refs;
+        List<PostView> items = render(pageRefs.stream().map(PostRepository.LikeRef::postId).toList(), viewer);
+        return new CursorPage<>(items, more ? PostRepository.LikeCursor.encode(pageRefs.getLast()) : null);
+    }
+
     @Transactional(readOnly = true)
     CursorPage<PostView> replies(long postId, long viewer, PageParams page) {
         PostView parent = get(postId, viewer); // 404s for missing or hidden posts

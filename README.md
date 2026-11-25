@@ -182,6 +182,7 @@ Auth is a stateless HS256 bearer JWT returned by register/login. GETs work anony
 | PUT / DELETE | `/api/users/{username}/follow` · `/block` · `/mute` | Idempotent; blocking removes follows in both directions |
 | GET | `/api/users/{username}/followers` · `/following` | Paginated |
 | GET | `/api/users/{username}/posts` | Posts and reposts, newest first |
+| GET | `/api/users/{username}/likes` | Posts the user liked, most recently liked first; keyset cursor on (like time, post id); posts hidden by blocks are skipped |
 | POST | `/api/posts` | `{content, replyToId?}`, at most 280 characters |
 | GET / DELETE | `/api/posts/{id}` | Only the author can delete |
 | GET | `/api/posts/{id}/replies` | Oldest first |
