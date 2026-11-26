@@ -10,6 +10,7 @@ import type {
   Suggestion,
   Trend,
   UserProfile,
+  UserResult,
   UserSummary,
 } from './types';
 
@@ -138,6 +139,7 @@ export const api = {
 
   trends: () => request<Trend[]>('GET', '/discover/trends'),
   suggestions: (limit = 3) => request<Suggestion[]>('GET', `/discover/users${qs({ limit })}`),
+  searchUsers: (q: string, limit = 10) => request<UserResult[]>('GET', `/search/users${qs({ q, limit })}`),
   search: (q: string, cursor?: string | null) =>
     request<CursorPage<PostView>>('GET', `/search/posts${qs({ q, cursor })}`),
 

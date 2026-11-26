@@ -96,7 +96,13 @@ export interface Suggestion extends UserSummary {
   followers: number;
 }
 
-export type Surface ='FOR_YOU' | 'FOLLOWING' | 'PROFILE' | 'POST';
+export interface UserResult extends UserSummary {
+  bio: string;
+  followers: number;
+  followedByMe: boolean;
+}
+
+export type Surface = 'FOR_YOU' | 'FOLLOWING' | 'PROFILE' | 'POST';
 
 export interface InteractionEvent {
   postId: number;
