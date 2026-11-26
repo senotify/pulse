@@ -13,6 +13,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 class DiscoveryRepository {
 
+    record UserResult(long id, String username, String displayName, String avatarKey, String bio,
+                      long followers, boolean followedByMe) {
+    }
+
     record Suggestion(long id, String username, String displayName, String avatarKey, long mutuals, long followers) {
     }
 
@@ -74,6 +78,41 @@ class DiscoveryRepository {
                 .param("before", beforeId, Types.BIGINT)
                 .param("limit", limit)
                 .query(Long.class)
+                .list();
+    }
+
+    /**
+     * People search over handles and display names, best match first: exact handle, handle prefix,
+     * name prefix, then substring matches, with bigger accounts first within each group. Accounts
+     * blocked in either direction never appear.
+     */
+    List<UserResult> searchUsers(String term, long viewer, int limit) {
+        String t = escapeLike(term.toLowerCase(java.util.Locale.ROOT));
+        return jdbc.sql("""
+                SELECT u.id, u.username, u.display_name, u.avatar_key, u.bio,
+                       (SELECT COUNT(*) FROM follows f WHERE f.followee_id = u.id) AS followers,
+                       EXISTS (SELECT 1 FROM follows f
+                                WHERE f.follower_id = :viewer AND f.followee_id = u.id) AS followed_by_me
+                FROM users u
+                WHERE (u.username LIKE :contains ESCAPE '\\' OR LOWER(u.display_name) LIKE :contains ESCAPE '\\')
+                  AND NOT EXISTS (SELECT 1 FROM blocks b
+                                   WHERE (b.blocker_id = u.id AND b.blocked_id = :viewer)
+                                      OR (b.blocker_id = :viewer AND b.blocked_id = u.id))
+                ORDER BY CASE
+                             WHEN u.username = :exact THEN 0
+                             WHEN u.username LIKE :prefix ESCAPE '\\' THEN 1
+                             WHEN LOWER(u.display_name) LIKE :prefix ESCAPE '\\' THEN 2
+                             ELSE 3
+                         END,
+                         followers DESC, u.id
+                LIMIT :limit
+                """)
+                .param("contains", "%" + t + "%")
+                .param("prefix", t + "%")
+                .param("exact", term.toLowerCase(java.util.Locale.ROOT))
+                .param("viewer", viewer)
+                .param("limit", limit)
+                .query(UserResult.class)
                 .list();
     }
 

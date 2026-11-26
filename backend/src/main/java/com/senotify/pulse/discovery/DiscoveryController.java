@@ -42,6 +42,21 @@ class DiscoveryController {
         return repository.suggestions(Viewer.id(jwt), Math.clamp(limit, 1, 20));
     }
 
+    /** People search for the typeahead and the People tab; a leading "@" is ignored. */
+    @GetMapping("/search/users")
+    List<DiscoveryRepository.UserResult> searchUsers(@AuthenticationPrincipal Jwt jwt,
+                                                     @RequestParam String q,
+                                                     @RequestParam(defaultValue = "10") int limit) {
+        String term = q.strip();
+        if (term.startsWith("@")) {
+            term = term.substring(1);
+        }
+        if (term.isEmpty() || term.length() > 50) {
+            throw ApiException.badRequest("Search term must be 1-50 characters");
+        }
+        return repository.searchUsers(term, Viewer.idOrAnonymous(jwt), Math.clamp(limit, 1, 20));
+    }
+
     /** Case-insensitive substring search over post text; hashtags are searched as "#tag". */
     @GetMapping("/search/posts")
     CursorPage<PostView> search(@AuthenticationPrincipal Jwt jwt,
