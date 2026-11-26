@@ -195,9 +195,12 @@ Auth is a stateless HS256 bearer JWT returned by register/login. GETs work anony
 | GET | `/api/discover/trends` | Top 5 hashtags by distinct posts in the last 24 hours (cached for 1 minute) |
 | GET | `/api/discover/users?limit=3` | Requires auth; who to follow: second-degree accounts by number of mutual follows, then audience size |
 | GET | `/api/search/posts?q=` | Case-insensitive substring search over post text (2-100 characters), paginated |
+| GET | `/api/notifications` | Requires auth; likes, reposts, replies, follows and mentions, newest first, keyset paginated. Likes on one post are grouped (`actor` is the latest liker, `actorCount` the total) and move back to the top, unread, with each new like. Actors blocked in either direction are hidden |
+| GET | `/api/notifications/unread-count` | Requires auth; `{count}` |
+| POST | `/api/notifications/read` | Requires auth; marks everything read, or only `{ids: [...]}` when given; returns 204 |
 | POST | `/api/interactions` | Requires auth; up to 100 `IMPRESSION`, `CLICK` or `DWELL` events with optional `surface`, `position`, `dwellMs` and `modelVersion`; returns 202 |
 
-Blocks hide content in both directions and prevent follows, likes, replies and reposts. Mutes hide an author from the Following timeline. Every state change writes a domain event to `outbox_events` in the same transaction.
+Blocks hide content in both directions and prevent follows, likes, replies and reposts. Mutes hide an author from the Following timeline. Every state change writes a domain event to `outbox_events` in the same transaction. Notifications are built from those events by an idempotent outbox handler (never for your own actions, and a reply that also mentions its recipient produces one notification).
 
 ## References
 

@@ -22,9 +22,9 @@ tested commits. Tick the box (`- [x]`) in the same commit that finishes the item
 
 - [x] **Likes tab on profiles**: `GET /api/users/{username}/likes` (keyset paginated by like time), (done 2026-11-25)
       plus a "Likes" tab in the profile UI next to Media. Tests for ordering, blocks and pagination.
-- [ ] **Notifications, backend**: a `notifications` table filled by an outbox handler (likes,
+- [x] **Notifications, backend**: a `notifications` table filled by an outbox handler (likes,
       reposts, replies, follows, mentions), `GET /api/notifications`, `POST /api/notifications/read`
-      and an unread count. Group duplicate likes per post. Tests.
+      and an unread count. Group duplicate likes per post. Tests. (done 2026-11-26)
 - [ ] **Notifications, frontend**: a Notifications page and nav item with an unread badge that
       polls every 60 s, marking items read when viewed.
 - [ ] **Rate limiting**: Redis fixed-window limits on login (per IP + username), registration,
