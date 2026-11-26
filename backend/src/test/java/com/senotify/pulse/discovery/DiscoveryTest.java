@@ -99,6 +99,30 @@ class DiscoveryTest {
         mvc.perform(get("/api/search/posts?q=a")).andExpect(status().isBadRequest());
     }
 
+    @Test
+    void searchesPeopleByHandleAndNameWithBestMatchFirst() throws Exception {
+        User exact = api.user("zqfind");      // username like zqfind17
+        User blocked = api.user("zqfindx");
+        User viewer = api.user("viewer");
+        api.block(blocked, viewer);
+
+        JsonNode all = read(mvc.perform(get("/api/search/users").param("q", "@" + exact.username())
+                .header(HttpHeaders.AUTHORIZATION, bearer(viewer))).andExpect(status().isOk()));
+        assertThat(all.get(0).path("username").asText()).isEqualTo(exact.username());
+        assertThat(all.get(0).has("followers")).isTrue();
+
+        List<String> prefix = new ArrayList<>();
+        read(mvc.perform(get("/api/search/users").param("q", "ZQFIND")
+                .header(HttpHeaders.AUTHORIZATION, bearer(viewer))))
+                .forEach(u -> prefix.add(u.path("username").asText()));
+        assertThat(prefix).contains(exact.username()).doesNotContain(blocked.username());
+
+        // Display names match too (the Api helper sets the name equal to the handle).
+        assertThat(read(mvc.perform(get("/api/search/users").param("q", exact.username().substring(2)))))
+                .isNotEmpty();
+        mvc.perform(get("/api/search/users").param("q", "@")).andExpect(status().isBadRequest());
+    }
+
     private JsonNode read(org.springframework.test.web.servlet.ResultActions result) throws Exception {
         return json.readTree(result.andReturn().getResponse().getContentAsString());
     }
