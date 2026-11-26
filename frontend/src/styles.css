@@ -652,3 +652,34 @@ img.avatar { display: block; background: var(--surface-2); }
 .media-tab a { aspect-ratio: 1; overflow: hidden; display: block; background: var(--surface-2); }
 .media-tab img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.15s; }
 .media-tab a:hover img { opacity: 0.85; }
+
+/* search typeahead */
+.search-wrap { position: relative; }
+.search-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--bg);
+  border-radius: 12px;
+  box-shadow: 0 0 15px rgb(101 119 134 / 20%), 0 0 3px 1px rgb(101 119 134 / 15%);
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  min-width: 0;
+}
+.search-row.active { background: var(--hover); }
+.search-row:disabled { opacity: 1; color: var(--text-3); }
+.search-row-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; color: var(--text-2); }
+.search-row-icon svg { width: 20px; height: 20px; }

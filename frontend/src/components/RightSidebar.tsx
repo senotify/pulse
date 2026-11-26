@@ -1,10 +1,10 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { Suggestion } from '../api/types';
 import { Avatar } from './Avatar';
-import { SearchIcon } from './Icons';
+import { SearchBox } from './SearchBox';
 
 export function RightSidebar() {
   return (
@@ -21,21 +21,6 @@ export function RightSidebar() {
         </footer>
       </div>
     </aside>
-  );
-}
-
-export function SearchBox({ initial = '' }: { initial?: string }) {
-  const navigate = useNavigate();
-  const [q, setQ] = useState(initial);
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    if (q.trim().length >= 2) navigate(`/explore?q=${encodeURIComponent(q.trim())}`);
-  }
-  return (
-    <form className="search" role="search" onSubmit={submit}>
-      <SearchIcon />
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Pulse" aria-label="Search Pulse" />
-    </form>
   );
 }
 
@@ -113,3 +98,5 @@ function SuggestionRow({ suggestion }: { suggestion: Suggestion }) {
     </div>
   );
 }
+
+export { SearchBox };
