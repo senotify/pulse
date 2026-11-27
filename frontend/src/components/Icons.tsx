@@ -140,3 +140,9 @@ export function PulseMark({ className }: { className?: string }) {
     </svg>
   );
 }
+
+export const BellIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 7H4c0-1 2-2 2-7zM10 20a2 2 0 0 0 4 0" />
+  </Icon>
+);

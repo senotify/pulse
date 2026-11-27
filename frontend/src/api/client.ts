@@ -5,6 +5,7 @@ import type {
   InteractionEvent,
   Me,
   MediaView,
+  NotificationView,
   PostView,
   ProfileFilter,
   Suggestion,
@@ -142,6 +143,11 @@ export const api = {
   searchUsers: (q: string, limit = 10) => request<UserResult[]>('GET', `/search/users${qs({ q, limit })}`),
   search: (q: string, cursor?: string | null) =>
     request<CursorPage<PostView>>('GET', `/search/posts${qs({ q, cursor })}`),
+
+  notifications: (cursor?: string | null) =>
+    request<CursorPage<NotificationView>>('GET', `/notifications${qs({ cursor })}`),
+  unreadNotifications: () => request<{ count: number }>('GET', '/notifications/unread-count'),
+  markNotificationsRead: (ids?: number[]) => request<void>('POST', '/notifications/read', ids ? { ids } : undefined),
 
   /** keepalive lets a final batch survive the page being closed. */
   interactions: (events: InteractionEvent[]) =>

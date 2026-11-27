@@ -1,9 +1,12 @@
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Avatar } from './Avatar';
 import { ComposeModal } from './ComposeModal';
-import { DotsIcon, HomeIcon, PenIcon, PulseMark, SearchIcon, UserIcon } from './Icons';
+import { BellIcon, DotsIcon, HomeIcon, PenIcon, PulseMark, SearchIcon, UserIcon } from './Icons';
+import { compactCount } from '../lib/format';
 import { RightSidebar } from './RightSidebar';
 
 export function Layout() {
@@ -13,6 +16,14 @@ export function Layout() {
   const menu = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const closeCompose = useCallback(() => setComposing(false), []);
+
+  const unread = useQuery({
+    queryKey: ['notifications', 'unread'],
+    queryFn: api.unreadNotifications,
+    refetchInterval: 60_000,
+    enabled: !!me,
+  });
+  const unreadCount = unread.data?.count ?? 0;
 
   useEffect(() => setMenuOpen(false), [location.pathname]);
   useEffect(() => {
@@ -33,6 +44,17 @@ export function Layout() {
       </NavLink>
       <NavLink to="/explore" className="nav-link">
         <SearchIcon /> <span>Explore</span>
+      </NavLink>
+      <NavLink to="/notifications" className="nav-link">
+        <span className="icon-wrap">
+          <BellIcon />
+          {unreadCount > 0 && (
+            <span className="unread-badge" aria-label={`${unreadCount} unread`}>
+              {unreadCount > 99 ? '99+' : compactCount(unreadCount)}
+            </span>
+          )}
+        </span>
+        <span>Notifications</span>
       </NavLink>
       <NavLink to={`/u/${me.username}`} className="nav-link">
         <UserIcon /> <span>Profile</span>

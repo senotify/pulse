@@ -683,3 +683,10 @@ img.avatar { display: block; background: var(--surface-2); }
 .search-row:disabled { opacity: 1; color: var(--text-3); }
 .search-row-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; color: var(--text-2); }
 .search-row-icon svg { width: 20px; height: 20px; }
+
+.icon-wrap { position: relative; display: inline-flex; }
+.unread-badge { position: absolute; top: -6px; right: -8px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: var(--accent, #1d9bf0); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.notification { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+.notification:hover { background: var(--hover); }
+.notification.unread { background: var(--surface-2); }
+.notification .preview { color: var(--text-2); margin-top: 2px; overflow-wrap: anywhere; }

@@ -115,3 +115,17 @@ export interface InteractionEvent {
 
 /** Profile tabs: posts without replies, everything, or posts with photos. */
 export type ProfileFilter = 'posts' | 'replies' | 'media';
+
+export type NotificationType = 'LIKE' | 'REPOST' | 'REPLY' | 'FOLLOW' | 'MENTION';
+
+export interface NotificationView {
+  id: number;
+  type: NotificationType;
+  /** The latest person behind it; with actorCount > 1 others did the same (likes are grouped). */
+  actor: UserSummary;
+  actorCount: number;
+  postId: number | null;
+  postPreview: string | null;
+  read: boolean;
+  createdAt: string;
+}
