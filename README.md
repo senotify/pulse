@@ -201,6 +201,8 @@ Auth is a stateless HS256 bearer JWT returned by register/login. GETs work anony
 | POST | `/api/notifications/read` | Requires auth; marks everything read, or only `{ids: [...]}` when given; returns 204 |
 | POST | `/api/interactions` | Requires auth; up to 100 `IMPRESSION`, `CLICK` or `DWELL` events with optional `surface`, `position`, `dwellMs` and `modelVersion`; returns 202 |
 
+Rate limits (Redis fixed windows, configured under `pulse.ratelimit`; `PULSE_RATELIMIT_ENABLED=false` turns them off): login 10 per 15 minutes per client address and login name, registration 5 per hour per address, post creation 30 per 10 minutes per user, media uploads 40 per 10 minutes per user. Going over returns a 429 problem detail with a `Retry-After` header (seconds). The client address is the first `X-Forwarded-For` entry set by the proxies in front of the API. If Redis is unreachable the limits are skipped (fail open) and a warning is logged.
+
 Blocks hide content in both directions and prevent follows, likes, replies and reposts. Mutes hide an author from the Following timeline. Every state change writes a domain event to `outbox_events` in the same transaction. Notifications are built from those events by an idempotent outbox handler (never for your own actions, and a reply that also mentions its recipient produces one notification).
 
 ## References

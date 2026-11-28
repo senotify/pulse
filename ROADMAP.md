@@ -27,9 +27,9 @@ tested commits. Tick the box (`- [x]`) in the same commit that finishes the item
       and an unread count. Group duplicate likes per post. Tests. (done 2026-11-26)
 - [x] **Notifications, frontend**: a Notifications page and nav item with an unread badge that
       polls every 60 s, marking items read when viewed. (done 2026-11-27)
-- [ ] **Rate limiting**: Redis fixed-window limits on login (per IP + username), registration,
+- [x] **Rate limiting**: Redis fixed-window limits on login (per IP + username), registration,
       post creation and media upload, returning 429 problem details with `Retry-After`. Fail open
-      if Redis is down. Tests with the in-memory test setup.
+      if Redis is down. Tests with the in-memory test setup. (done 2026-11-28)
 
 ## Operability
 
