@@ -7,6 +7,8 @@ import com.senotify.pulse.identity.IdentityDtos.Me;
 import com.senotify.pulse.identity.IdentityDtos.RegisterRequest;
 import com.senotify.pulse.identity.IdentityDtos.UpdateProfileRequest;
 import com.senotify.pulse.identity.IdentityDtos.UserProfile;
+import com.senotify.pulse.ratelimit.RateLimits;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,19 +27,23 @@ import org.springframework.web.bind.annotation.RestController;
 class IdentityController {
 
     private final IdentityService identity;
+    private final RateLimits rateLimits;
 
-    IdentityController(IdentityService identity) {
+    IdentityController(IdentityService identity, RateLimits rateLimits) {
         this.identity = identity;
+        this.rateLimits = rateLimits;
     }
 
     @PostMapping("/auth/register")
     @ResponseStatus(HttpStatus.CREATED)
-    AuthResponse register(@Valid @RequestBody RegisterRequest request) {
+    AuthResponse register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
+        rateLimits.registration(http);
         return identity.register(request);
     }
 
     @PostMapping("/auth/login")
-    AuthResponse login(@Valid @RequestBody LoginRequest request) {
+    AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+        rateLimits.login(http, request.login());
         return identity.login(request);
     }
 

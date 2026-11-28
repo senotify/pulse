@@ -10,6 +10,8 @@ pulse:
   outbox:
     relay:
       enabled: false # tests drain the outbox explicitly
+  ratelimit:
+    enabled: false # RateLimitTest turns it on with tiny limits
   timeline:
     fanout-threshold: 3
   discovery:

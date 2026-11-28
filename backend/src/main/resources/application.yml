@@ -43,6 +43,13 @@ pulse:
     follow-backfill: 50
     # Timelines of users who stop reading expire and are rebuilt from PostgreSQL on return.
     idle-ttl: P7D
+  ratelimit:
+    # Fixed-window limits kept in Redis; if Redis is unreachable requests are let through.
+    enabled: ${PULSE_RATELIMIT_ENABLED:true}
+    login: { limit: 10, window: PT15M }        # per client address + login name
+    registration: { limit: 5, window: PT1H }   # per client address
+    posts: { limit: 30, window: PT10M }        # per user
+    uploads: { limit: 40, window: PT10M }      # per user
   recommendation:
     candidate-window: P3D
     trending-window: P1D

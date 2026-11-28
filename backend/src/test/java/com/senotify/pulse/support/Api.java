@@ -35,7 +35,9 @@ public class Api {
     /** Registers a user with a unique handle; tests share one database. */
     public User user(String prefix) throws Exception {
         String username = prefix + SEQ.incrementAndGet();
-        JsonNode body = read(mvc.perform(MockMvcRequestBuilders.post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+        JsonNode body = read(mvc.perform(MockMvcRequestBuilders.post("/api/auth/register")
+                        .header("X-Forwarded-For", "198.51.100." + SEQ.get() % 250) // distinct clients, so per-IP limits stay out of the way
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"username":"%s","email":"%s@example.com","displayName":"%s","password":"password123"}
                                 """.formatted(username, username, username)))

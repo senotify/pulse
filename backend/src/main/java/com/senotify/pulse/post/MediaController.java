@@ -3,6 +3,7 @@ package com.senotify.pulse.post;
 import com.senotify.pulse.common.ApiException;
 import com.senotify.pulse.common.Images;
 import com.senotify.pulse.common.Viewer;
+import com.senotify.pulse.ratelimit.RateLimits;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -36,9 +37,11 @@ class MediaController {
     private static final Logger log = LoggerFactory.getLogger(MediaController.class);
 
     private final MediaRepository media;
+    private final RateLimits rateLimits;
 
-    MediaController(MediaRepository media) {
+    MediaController(MediaRepository media, RateLimits rateLimits) {
         this.media = media;
+        this.rateLimits = rateLimits;
     }
 
     @PostMapping(path = "/api/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -46,6 +49,7 @@ class MediaController {
     public MediaView upload(@AuthenticationPrincipal Jwt jwt, @RequestParam("file") MultipartFile file)
             throws IOException {
         long owner = Viewer.id(jwt);
+        rateLimits.upload(owner);
         if (file.isEmpty()) {
             throw ApiException.badRequest("Choose an image to upload");
         }

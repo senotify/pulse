@@ -28,6 +28,12 @@ public class TestBeans {
 
     @Bean
     @Primary
+    InMemoryRateLimiter inMemoryRateLimiter() {
+        return new InMemoryRateLimiter();
+    }
+
+    @Bean
+    @Primary
     FeedSnapshotStore inMemoryFeedSnapshotStore() {
         Map<String, List<RankedEntry>> snapshots = new ConcurrentHashMap<>();
         return new FeedSnapshotStore() {

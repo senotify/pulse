@@ -3,6 +3,7 @@ package com.senotify.pulse.post;
 import com.senotify.pulse.common.CursorPage;
 import com.senotify.pulse.common.PageParams;
 import com.senotify.pulse.common.Viewer;
+import com.senotify.pulse.ratelimit.RateLimits;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -29,14 +30,17 @@ class PostController {
     }
 
     private final PostService posts;
+    private final RateLimits rateLimits;
 
-    PostController(PostService posts) {
+    PostController(PostService posts, RateLimits rateLimits) {
         this.posts = posts;
+        this.rateLimits = rateLimits;
     }
 
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
     PostView create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreatePostRequest request) {
+        rateLimits.createPost(Viewer.id(jwt));
         return posts.create(Viewer.id(jwt), request.content(), request.replyToId(), request.mediaIds());
     }
 
